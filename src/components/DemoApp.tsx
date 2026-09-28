@@ -1836,6 +1836,7 @@ function RequestView() {
 }
 export default function DemoApp() {
   const path = usePathname();
+  const routePath = path !== "/" ? path.replace(/\/+$/, "") : path;
   const ready = useHydrated();
   const routes: Record<string, React.ReactNode> = {
     "/": <Home />,
@@ -1866,7 +1867,7 @@ export default function DemoApp() {
   return (
     <>
       <Header />
-      {routes[path] ?? (
+      {routes[routePath] ?? (
         <main className="wrap not-found">
           <h1>Página no encontrada</h1>
           <Link className="btn dark" href="/">
