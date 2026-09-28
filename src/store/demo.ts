@@ -137,13 +137,14 @@ export const useDemoStore = create<State>()(
           request: s.request ? { ...s.request, paymentSelection: v } : null,
         })),
       resetFlow: (kind) =>
-        set(
-          kind === "order"
+        set((s) => ({
+          ...(kind === "order"
             ? { orderMode: null, orderTableId: null, cart: [] }
             : kind === "tableReservation"
               ? { reservation: emptyReservation }
-              : { cowork: emptyCowork },
-        ),
+              : { cowork: emptyCowork }),
+          request: s.request?.kind === kind ? null : s.request,
+        })),
     }),
     {
       name: "lunario-demo-v1",

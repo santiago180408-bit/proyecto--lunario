@@ -995,6 +995,11 @@ function Guard({
 function ChoicePage() {
   const router = useRouter();
   const set = useDemoStore((s) => s.setOrderMode);
+  const request = useDemoStore((s) => s.request);
+  const reset = useDemoStore((s) => s.resetFlow);
+  useEffect(() => {
+    if (request?.kind === "order" && request.status === "confirmed") reset("order");
+  }, [request, reset]);
   return (
     <main>
       <StepHeader
@@ -1074,6 +1079,12 @@ function OrderTable() {
 function ReservationStart() {
   const draft = useDemoStore((s) => s.reservation);
   const set = useDemoStore((s) => s.setReservation);
+  const request = useDemoStore((s) => s.request);
+  const reset = useDemoStore((s) => s.resetFlow);
+  useEffect(() => {
+    if (request?.kind === "tableReservation" && request.status === "confirmed")
+      reset("tableReservation");
+  }, [request, reset]);
   const router = useRouter();
   const [error, setError] = useState("");
   function next() {
@@ -1418,6 +1429,12 @@ function ReservationReview() {
 function CoworkingStart() {
   const d = useDemoStore((s) => s.cowork);
   const set = useDemoStore((s) => s.setCowork);
+  const request = useDemoStore((s) => s.request);
+  const reset = useDemoStore((s) => s.resetFlow);
+  useEffect(() => {
+    if (request?.kind === "coworking" && request.status === "confirmed")
+      reset("coworking");
+  }, [request, reset]);
   const router = useRouter();
   const room = rooms.find((r) => r.id === d.roomId);
   return (
