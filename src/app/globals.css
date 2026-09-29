@@ -1964,15 +1964,22 @@ h2 {
 .cart-dialog {
   border-radius: 28px 0 0 28px;
   padding-bottom: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 .cart-list {
-  flex: 1;
+  flex: none;
   min-height: 0;
   max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .cart-footer {
+  position: relative;
+  z-index: 2;
   flex-shrink: 0;
   padding-bottom: max(20px, env(safe-area-inset-bottom));
+  background: var(--surface);
 }
 .cart-row-actions {
   gap: 8px;
@@ -2330,7 +2337,9 @@ h2 {
     grid-column: 1/-1;
   }
   .cart-dialog {
-    height: 92dvh;
+    height: 92vh;
+    height: min(92dvh, 92svh);
+    max-height: min(92dvh, 92svh);
   }
   .cart-list {
     max-height: none;
