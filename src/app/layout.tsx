@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
 import "./globals.css";
 const serif = Cormorant_Garamond({
@@ -11,6 +11,12 @@ const sans = Inter({
   variable: "--font-sans",
   display: "swap",
 });
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0d0c0b",
+};
 export const metadata: Metadata = {
   title: "Lunario Café — Demo de experiencia digital",
   description:

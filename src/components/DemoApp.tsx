@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -15,10 +16,24 @@ import {
   RotateCcw,
   CreditCard,
   Banknote,
+  Coffee,
+  CalendarDays,
+  Laptop,
+  Search,
+  Utensils,
+  PackageCheck,
+  Pencil,
+  Trash2,
+  Users,
+  Clock,
+  Leaf,
+  CakeSlice,
+  Sandwich,
 } from "lucide-react";
 import {
   categories,
   formatMoney,
+  visibleGroups,
   products,
   startingPrice,
   unitPrice,
@@ -29,7 +44,7 @@ import { useDemoStore, type CartItem, type RequestKind } from "@/store/demo";
 
 const productById = (id: string) => products.find((p) => p.id === id);
 const selectedLabels = (p: Product, selections: Record<string, string>) =>
-  p.optionGroups
+  visibleGroups(p, selections)
     .map((g) => g.options.find((o) => o.id === selections[g.id])?.label)
     .filter(Boolean)
     .join(" · ");
@@ -39,6 +54,7 @@ const cartTotal = (cart: CartItem[]) =>
     return sum + (p ? unitPrice(p, item.selections) * item.quantity : 0);
   }, 0);
 const makeLineId = () => crypto.randomUUID();
+let dialogLocks = 0;
 function useHydrated() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -64,12 +80,35 @@ function StepHeader({
   description?: string;
   back?: string;
 }) {
+  const path = usePathname().replace(/\/+$/, "");
+  const steps = path.startsWith("/reservar")
+    ? ["Tu visita", "Mesa", "Revisión"]
+    : path.startsWith("/coworking")
+      ? ["Espacio", "Tarifa y fecha", "Revisión"]
+      : path.startsWith("/pedido")
+        ? ["Modalidad", "Tu pedido", "Revisión"]
+        : [];
+  const current = path.endsWith("revision")
+    ? 2
+    : path.endsWith("mesa") || path.endsWith("configurar")
+      ? 1
+      : 0;
   return (
     <div className="step-header wrap">
       {back && <GoBack href={back} />}
       <p className="eyebrow">{eyebrow}</p>
       <h1>{title}</h1>
       {description && <p className="muted lead">{description}</p>}
+      {steps.length > 0 && (
+        <ol className="flow-progress" aria-label="Progreso">
+          {steps.map((step, i) => (
+            <li key={step} aria-current={i === current ? "step" : undefined}>
+              <span>{i < current ? <Check size={12} /> : i + 1}</span>
+              {step}
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }
@@ -86,6 +125,8 @@ function Dialog({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const returnTo = useRef<HTMLElement | null>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     returnTo.current = document.activeElement as HTMLElement;
     const root = ref.current;
@@ -95,7 +136,7 @@ function Dialog({
     const key = (e: KeyboardEvent) => {
       const dialogs = document.querySelectorAll(".dialog");
       if (dialogs[dialogs.length - 1] !== root) return;
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") closeRef.current();
       if (e.key === "Tab" && root) {
         const nodes = [
           ...root.querySelectorAll<HTMLElement>(
@@ -115,14 +156,16 @@ function Dialog({
       }
     };
     document.addEventListener("keydown", key);
+    dialogLocks += 1;
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", key);
-      document.body.style.overflow = "";
+      dialogLocks -= 1;
+      if (dialogLocks === 0) document.body.style.overflow = "";
       returnTo.current?.focus();
     };
-  }, [onClose]);
-  return (
+  }, []);
+  return createPortal(
     <div
       className="dialog-scrim"
       onMouseDown={(e) => {
@@ -145,12 +188,35 @@ function Dialog({
         </button>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 function Header() {
   const path = usePathname();
   const cart = useDemoStore((s) => s.cart);
+  const count = cart.reduce((n, item) => n + item.quantity, 0);
+  const showCart =
+    count > 0 &&
+    (path === "/" || path.startsWith("/menu") || path.startsWith("/pedido"));
+  const [toast, setToast] = useState("");
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const notify = () => {
+      setToast("Pedido actualizado");
+      clearTimeout(timer);
+      timer = setTimeout(() => setToast(""), 2200);
+    };
+    window.addEventListener("lunario:cart", notify);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("lunario:cart", notify);
+    };
+  }, []);
+  useEffect(() => {
+    document.body.classList.toggle("has-cart", showCart);
+    return () => document.body.classList.remove("has-cart");
+  }, [showCart]);
   const [menu, setMenu] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   useEffect(() => setMenu(false), [path]);
@@ -184,6 +250,16 @@ function Header() {
             />
           </Link>
           <nav className="desktop-nav" aria-label="Principal">
+            {count > 0 && (
+              <button
+                className="icon-btn"
+                aria-label="Abrir carrito"
+                onClick={() => setCartOpen(true)}
+              >
+                <ShoppingBag size={20} />
+                <span className="cart-badge">{count}</span>
+              </button>
+            )}
             <Link href="/menu">Menú</Link>
             <Link href="/reservar">Reservar</Link>
             <Link href="/coworking">Coworking</Link>
@@ -194,12 +270,14 @@ function Header() {
           <div className="mobile-actions">
             {cart.length > 0 && (
               <button
-                aria-label={`Abrir carrito, ${cart.length} productos`}
+                aria-label={`Abrir carrito, ${count} ${count === 1 ? "producto" : "productos"}`}
                 className="icon-btn"
                 onClick={() => setCartOpen(true)}
               >
                 <ShoppingBag size={22} />
-                <span className="cart-badge">{cart.length}</span>
+                <span key={count} className="cart-badge">
+                  {count}
+                </span>
               </button>
             )}
             <button
@@ -222,6 +300,33 @@ function Header() {
           </nav>
         )}
       </header>
+      {showCart && !cartOpen && !menu && (
+        <button
+          className="floating-cart"
+          onClick={() => setCartOpen(true)}
+          aria-label={`Ver pedido, ${count} ${count === 1 ? "producto" : "productos"}, ${formatMoney(cartTotal(cart))}`}
+        >
+          <span className="cart-icon">
+            <ShoppingBag size={20} />
+            <b key={count}>{count}</b>
+          </span>
+          <span>
+            <small>Tu pedido</small>
+            <strong>{formatMoney(cartTotal(cart))}</strong>
+          </span>
+          <span className="cart-cta">
+            Ver pedido <ArrowRight size={18} />
+          </span>
+        </button>
+      )}
+      <div className="toast" role="status">
+        {toast && (
+          <span>
+            <Check size={16} />
+            {toast}
+          </span>
+        )}
+      </div>
       {cartOpen && <CartDialog onClose={() => setCartOpen(false)} />}
     </>
   );
@@ -280,7 +385,7 @@ function Home() {
             </Link>
           </div>
         </div>
-        <div className="hero-side">LUNARIO CAFÉ / DEMO V1</div>
+        <div className="hero-side">LUNARIO CAFÉ / DEMO V2</div>
       </section>
       <section className="wrap home-actions">
         <div className="section-intro">
@@ -289,19 +394,25 @@ function Home() {
         </div>
         <div className="action-grid">
           <Link href="/pedido" className="action-card">
-            <span>01</span>
+            <span className="icon-holder warm">
+              <ShoppingBag />
+            </span>
             <h3>Pedir</h3>
             <p>Para disfrutar aquí o recoger.</p>
             <ArrowRight />
           </Link>
           <Link href="/reservar" className="action-card">
-            <span>02</span>
+            <span className="icon-holder lavender">
+              <CalendarDays />
+            </span>
             <h3>Reservar mesa</h3>
             <p>Elige tu fecha y una mesa en el plano.</p>
             <ArrowRight />
           </Link>
           <Link href="/coworking" className="action-card">
-            <span>03</span>
+            <span className="icon-holder mist">
+              <Laptop />
+            </span>
             <h3>Coworking</h3>
             <p>Encuentra un espacio para tus ideas.</p>
             <ArrowRight />
@@ -380,9 +491,28 @@ function ProductCard({
   transactionalMode: boolean;
   onOpen: (p: Product) => void;
 }) {
+  const Symbol =
+    {
+      cafe: Coffee,
+      bebidas: Leaf,
+      desayunos: Utensils,
+      postres: CakeSlice,
+      emparedados: Sandwich,
+      antojitos: Utensils,
+    }[product.categoryId] ?? Coffee;
   return (
-    <article className="product-card">
+    <button
+      type="button"
+      className="product-card"
+      onClick={() => onOpen(product)}
+    >
       <div>
+        <span
+          className={`product-symbol tone-${product.categoryId}`}
+          aria-hidden="true"
+        >
+          <Symbol size={20} />
+        </span>
         <p className="product-category">
           {categories.find((c) => c.id === product.categoryId)?.name}
         </p>
@@ -400,18 +530,33 @@ function ProductCard({
             : ""}
           {formatMoney(startingPrice(product))}
         </strong>
-        <button className="text-action" onClick={() => onOpen(product)}>
+        <span className="text-action">
           {transactionalMode ? "Ver opciones" : "Ver detalle"}{" "}
           <ArrowRight size={16} />
-        </button>
+        </span>
       </div>
-    </article>
+    </button>
   );
 }
 function MenuView() {
   const mode = useDemoStore((s) => s.orderMode);
   const cart = useDemoStore((s) => s.cart);
   const [active, setActive] = useState<string>("cafe");
+  const [query, setQuery] = useState("");
+  const normalize = (v: string) =>
+    v
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  const visible = products.filter(
+    (p) =>
+      p.enabledInDemo &&
+      (query.trim()
+        ? normalize(
+            `${p.name} ${p.description} ${categories.find((c) => c.id === p.categoryId)?.name}`,
+          ).includes(normalize(query.trim()))
+        : p.categoryId === active),
+  );
   const [open, setOpen] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   return (
@@ -421,14 +566,34 @@ function MenuView() {
         title="La carta"
         description="Sabores para quedarte un poco más."
       />
+      <div className="wrap search-wrap">
+        <label className="menu-search">
+          <Search size={20} />
+          <input
+            type="search"
+            placeholder="Buscar en la carta"
+            aria-label="Buscar en la carta"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+      </div>
       <div className="category-strip">
         <nav className="wrap category-inner" aria-label="Categorías del menú">
           {categories.map((c) => (
             <button
               key={c.id}
-              onClick={() => setActive(c.id)}
-              className={active === c.id ? "active" : ""}
-              aria-current={active === c.id ? "true" : undefined}
+              onClick={(e) => {
+                setActive(c.id);
+                setQuery("");
+                e.currentTarget.scrollIntoView({
+                  block: "nearest",
+                  inline: "center",
+                  behavior: "smooth",
+                });
+              }}
+              className={!query && active === c.id ? "active" : ""}
+              aria-current={!query && active === c.id ? "true" : undefined}
             >
               {c.name}
             </button>
@@ -439,7 +604,9 @@ function MenuView() {
         <div className="menu-topline">
           <div>
             <p className="eyebrow">
-              {categories.find((c) => c.id === active)?.name}
+              {query
+                ? `${visible.length} ${visible.length === 1 ? "resultado" : "resultados"}`
+                : categories.find((c) => c.id === active)?.name}
             </p>
             <p className="muted">Precios en pesos mexicanos.</p>
           </div>
@@ -449,17 +616,20 @@ function MenuView() {
             </button>
           )}
         </div>
+        {visible.length === 0 && (
+          <p className="empty-state">
+            No encontramos productos. Prueba con otro nombre o categoría.
+          </p>
+        )}
         <div className="product-grid">
-          {products
-            .filter((p) => p.categoryId === active && p.enabledInDemo)
-            .map((p) => (
-              <ProductCard
-                key={p.id}
-                product={p}
-                transactionalMode={!!mode}
-                onOpen={setOpen}
-              />
-            ))}
+          {visible.map((p) => (
+            <ProductCard
+              key={p.id}
+              product={p}
+              transactionalMode={!!mode}
+              onOpen={setOpen}
+            />
+          ))}
         </div>
       </main>
       {open && (
@@ -517,16 +687,14 @@ function ProductConfigurator({
   const [error, setError] = useState("");
   const price = unitPrice(product, selections);
   function commit() {
-    const missing = product.optionGroups.find(
+    const missing = visibleGroups(product, selections).find(
       (g) => g.required && !selections[g.id],
     );
     if (missing) {
       setError(`Elige ${missing.label.toLowerCase()}.`);
-      return;
-    }
-    if (!mode && !editing) {
-      onClose();
-      router.push("/pedido");
+      document
+        .querySelector<HTMLInputElement>(`[data-group="${missing.id}"] input`)
+        ?.focus();
       return;
     }
     const line: CartItem = {
@@ -537,7 +705,9 @@ function ProductConfigurator({
     };
     if (editing) update(editing.lineId, line);
     else add(line);
+    window.dispatchEvent(new Event("lunario:cart"));
     onClose();
+    if (!mode && !editing) router.push("/pedido");
   }
   return (
     <Dialog title={product.name} onClose={onClose} className="product-dialog">
@@ -545,8 +715,8 @@ function ProductConfigurator({
       <h2>{product.name}</h2>
       {product.description && <p className="muted">{product.description}</p>}
       <div className="config-options">
-        {product.optionGroups.map((g) => (
-          <fieldset key={g.id}>
+        {visibleGroups(product, selections).map((g) => (
+          <fieldset key={g.id} data-group={g.id}>
             <legend>
               {g.label} {g.required && <span aria-hidden="true">*</span>}
             </legend>
@@ -568,7 +738,7 @@ function ProductConfigurator({
                       }}
                     />
                     <span>{o.label}</span>
-                    {o.priceMode !== "none" && (
+                    {o.priceMode !== "none" && o.price !== 0 && (
                       <strong>
                         {o.priceMode === "delta" && "+"}
                         {formatMoney(o.price)}
@@ -599,7 +769,7 @@ function ProductConfigurator({
           {editing
             ? "Guardar cambios"
             : mode
-              ? "Agregar al carrito"
+              ? `Agregar · ${formatMoney((price || startingPrice(product)) * quantity)}`
               : "Elegir modalidad"}{" "}
           <ArrowRight size={16} />
         </button>
@@ -653,13 +823,13 @@ function CartDialog({
                             onEdit ? onEdit(p, item) : setEditing(item)
                           }
                         >
-                          Editar
+                          <Pencil size={15} /> Editar
                         </button>
                         <button
                           className="text-action"
                           onClick={() => remove(item.lineId)}
                         >
-                          Eliminar
+                          <Trash2 size={15} /> Eliminar
                         </button>
                       </div>
                     </div>
@@ -954,8 +1124,8 @@ function Floorplan({
         dorado.
       </p>
       {kind === "table" && (
-        <div className="table-options">
-          <p className="eyebrow">ELEGIR POR UBICACIÓN</p>
+        <details className="table-options">
+          <summary className="eyebrow">Elegir mesa por ubicación</summary>
           <div>
             {tables.map((t) => (
               <button
@@ -968,7 +1138,7 @@ function Floorplan({
               </button>
             ))}
           </div>
-        </div>
+        </details>
       )}
     </div>
   );
@@ -995,11 +1165,6 @@ function Guard({
 function ChoicePage() {
   const router = useRouter();
   const set = useDemoStore((s) => s.setOrderMode);
-  const request = useDemoStore((s) => s.request);
-  const reset = useDemoStore((s) => s.resetFlow);
-  useEffect(() => {
-    if (request?.kind === "order" && request.status === "confirmed") reset("order");
-  }, [request, reset]);
   return (
     <main>
       <StepHeader
@@ -1016,7 +1181,9 @@ function ChoicePage() {
             router.push("/pedido/mesa");
           }}
         >
-          <span className="choice-num">01</span>
+          <span className="icon-holder warm">
+            <Utensils />
+          </span>
           <h2>En Lunario</h2>
           <p>Selecciona una mesa y elige desde la carta.</p>
           <span className="choice-arrow">
@@ -1030,7 +1197,9 @@ function ChoicePage() {
             router.push("/menu");
           }}
         >
-          <span className="choice-num">02</span>
+          <span className="icon-holder sage">
+            <PackageCheck />
+          </span>
           <h2>Para recoger</h2>
           <p>Explora el menú y prepara tu pedido.</p>
           <span className="choice-arrow">
@@ -1079,12 +1248,6 @@ function OrderTable() {
 function ReservationStart() {
   const draft = useDemoStore((s) => s.reservation);
   const set = useDemoStore((s) => s.setReservation);
-  const request = useDemoStore((s) => s.request);
-  const reset = useDemoStore((s) => s.resetFlow);
-  useEffect(() => {
-    if (request?.kind === "tableReservation" && request.status === "confirmed")
-      reset("tableReservation");
-  }, [request, reset]);
   const router = useRouter();
   const [error, setError] = useState("");
   function next() {
@@ -1106,7 +1269,9 @@ function ReservationStart() {
       <div className="wrap form-layout">
         <div className="form-panel">
           <label>
-            Fecha
+            <span className="field-label">
+              <CalendarDays size={16} /> Fecha
+            </span>
             <input
               type="date"
               value={draft.date}
@@ -1114,7 +1279,9 @@ function ReservationStart() {
             />
           </label>
           <label>
-            Hora
+            <span className="field-label">
+              <Clock size={16} /> Hora
+            </span>
             <input
               type="time"
               value={draft.time}
@@ -1122,14 +1289,16 @@ function ReservationStart() {
             />
           </label>
           <label>
-            Personas
+            <span className="field-label">
+              <Users size={16} /> Personas
+            </span>
             <input
               type="number"
               min="1"
               step="1"
               value={draft.people || ""}
               onChange={(e) =>
-                set({ people: Math.max(0, Number(e.target.value)) })
+                set({ people: Math.max(0, Math.floor(Number(e.target.value))) })
               }
               placeholder="Número de personas"
             />
@@ -1429,12 +1598,6 @@ function ReservationReview() {
 function CoworkingStart() {
   const d = useDemoStore((s) => s.cowork);
   const set = useDemoStore((s) => s.setCowork);
-  const request = useDemoStore((s) => s.request);
-  const reset = useDemoStore((s) => s.resetFlow);
-  useEffect(() => {
-    if (request?.kind === "coworking" && request.status === "confirmed")
-      reset("coworking");
-  }, [request, reset]);
   const router = useRouter();
   const room = rooms.find((r) => r.id === d.roomId);
   return (
@@ -1473,9 +1636,11 @@ function CoworkingStart() {
             {rooms.map((r) => (
               <button
                 key={r.id}
+                aria-pressed={d.roomId === r.id}
                 className={d.roomId === r.id ? "selected" : ""}
                 onClick={() => set({ roomId: r.id, people: 0 })}
               >
+                <Laptop size={20} />
                 <span>{r.name}</span>
                 <small>Hasta {r.capacity} personas</small>
               </button>
@@ -1535,6 +1700,7 @@ function CoworkingConfigure() {
               {rates.map((r) => (
                 <button
                   key={r.id}
+                  aria-pressed={d.rateId === r.id}
                   className={`rate-card ${d.rateId === r.id ? "selected" : ""}`}
                   onClick={() =>
                     set({
@@ -1586,12 +1752,19 @@ function CoworkingConfigure() {
                     step="1"
                     value={d.duration || ""}
                     onChange={(e) =>
-                      set({ duration: Math.max(0, Number(e.target.value)) })
+                      set({
+                        duration: Math.max(
+                          0,
+                          Math.floor(Number(e.target.value)),
+                        ),
+                      })
                     }
                   />
                 </label>
                 <label>
-                  Fecha
+                  <span className="field-label">
+                    <CalendarDays size={16} /> Fecha
+                  </span>
                   <input
                     type="date"
                     value={d.date}
@@ -1599,7 +1772,9 @@ function CoworkingConfigure() {
                   />
                 </label>
                 <label>
-                  Hora
+                  <span className="field-label">
+                    <Clock size={16} /> Hora
+                  </span>
                   <input
                     type="time"
                     value={d.time}
@@ -1607,7 +1782,9 @@ function CoworkingConfigure() {
                   />
                 </label>
                 <label>
-                  Personas
+                  <span className="field-label">
+                    <Users size={16} /> Personas
+                  </span>
                   <input
                     type="number"
                     min="1"
@@ -1618,7 +1795,7 @@ function CoworkingConfigure() {
                       set({
                         people: Math.min(
                           room?.capacity ?? 10,
-                          Math.max(0, Number(e.target.value)),
+                          Math.max(0, Math.floor(Number(e.target.value))),
                         ),
                       })
                     }
@@ -1752,6 +1929,24 @@ function RequestView() {
       <main className="request-page">
         <div className="wrap request-center">
           <span className="demo-badge">ESTADO DE DEMOSTRACIÓN</span>
+          <ol className="request-progress" aria-label="Estado de solicitud">
+            {["Enviada", "Pendiente", "Confirmada"].map((label, i) => (
+              <li
+                key={label}
+                className={
+                  i <=
+                  ["submitted", "pending", "confirmed"].indexOf(
+                    req?.status ?? "",
+                  )
+                    ? "complete"
+                    : ""
+                }
+              >
+                <span>{i + 1}</span>
+                {label}
+              </li>
+            ))}
+          </ol>
           <div className="request-mark">
             <Check size={36} />
           </div>
@@ -1795,6 +1990,7 @@ function RequestView() {
               <div className="payment-options">
                 <button
                   className={req.paymentSelection === "card" ? "selected" : ""}
+                  aria-pressed={req.paymentSelection === "card"}
                   onClick={() => payment("card")}
                 >
                   <CreditCard />
@@ -1804,12 +2000,15 @@ function RequestView() {
                   className={
                     req.paymentSelection === "apple-pay" ? "selected" : ""
                   }
+                  aria-pressed={req.paymentSelection === "apple-pay"}
                   onClick={() => payment("apple-pay")}
                 >
-                  <span className="apple-mark">●</span>Apple Pay
+                  <CreditCard />
+                  Apple Pay
                 </button>
                 <button
                   className={req.paymentSelection === "cash" ? "selected" : ""}
+                  aria-pressed={req.paymentSelection === "cash"}
                   onClick={() => payment("cash")}
                 >
                   <Banknote />
