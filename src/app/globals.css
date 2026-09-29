@@ -2063,11 +2063,16 @@ h2 {
 .cart-dialog {
   border-radius: 28px 0 0 28px;
   padding-bottom: 0;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
+}
+.cart-dialog > .eyebrow,
+.cart-dialog > h2,
+.cart-dialog > .pickup-context {
+  flex: 0 0 auto;
 }
 .cart-list {
-  flex: none;
+  flex: 1 1 auto;
   min-height: 0;
   max-height: none;
   overflow-y: auto;
@@ -2340,6 +2345,9 @@ h2 {
       var(--floating-shadow),
       inset 0 1px 0 #ffffff19;
     animation: sheet-in var(--enter) var(--ease);
+  }
+  .order-review-submit {
+    display: none;
   }
   .floating-cart > span:nth-child(2) {
     display: grid;

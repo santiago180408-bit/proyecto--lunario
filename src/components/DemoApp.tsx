@@ -229,6 +229,8 @@ function Header() {
     count > 0 &&
     (path === "/" || path.startsWith("/menu") || path.startsWith("/pedido"));
   const [toast, setToast] = useState("");
+  const [orderReviewActionOpen, setOrderReviewActionOpen] = useState(false);
+  const isOrderReview = path.replace(/\/+$/, "") === "/pedido/revision";
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const notify = (event: Event) => {
@@ -341,8 +343,8 @@ function Header() {
       {showCart && !cartOpen && !menu && (
         <button
           className="floating-cart"
-          onClick={() => setCartOpen(true)}
-          aria-label={`Ver pedido, ${count} ${count === 1 ? "producto" : "productos"}, ${formatMoney(cartTotal(cart))}`}
+          onClick={() => isOrderReview ? setOrderReviewActionOpen(true) : setCartOpen(true)}
+          aria-label={`${isOrderReview ? "Enviar solicitud" : "Ver pedido"}, ${count} ${count === 1 ? "producto" : "productos"}, ${formatMoney(cartTotal(cart))}`}
         >
           <span className="cart-icon">
             <ShoppingBag size={20} />
@@ -358,10 +360,11 @@ function Header() {
             )}
           </span>
           <span className="cart-cta">
-            Ver pedido <ArrowRight size={18} />
+            {isOrderReview ? "Enviar solicitud" : "Ver pedido"} <ArrowRight size={18} />
           </span>
         </button>
       )}
+      {orderReviewActionOpen && <AccessDialog kind="order" onClose={() => setOrderReviewActionOpen(false)} />}
       <div className="toast" role="status">
         {toast && (
           <span>
@@ -1702,7 +1705,9 @@ function OrderReview() {
           <aside className="review-side">
             <p className="eyebrow">RESUMEN</p>
             <p className="muted">La solicitud no realiza un pedido real.</p>
-            <ReviewActions kind="order" />
+            <div className="order-review-submit">
+              <ReviewActions kind="order" />
+            </div>
           </aside>
         </div>
       </main>
