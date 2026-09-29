@@ -2,6 +2,12 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { Period } from "@/data/coworking";
+import type {
+  AccessMode,
+  PaymentMethod,
+  RequestKind,
+} from "@/data/payment";
+export type { RequestKind } from "@/data/payment";
 export type CartItem = {
   lineId: string;
   productId: string;
@@ -23,16 +29,39 @@ export type CoworkDraft = {
   time: string;
   people: number;
 };
-export type RequestKind = "order" | "tableReservation" | "coworking";
+export type ReceiptLine = {
+  description: string;
+  quantity: number;
+  total: number;
+};
+export type Receipt = {
+  id: string;
+  requestId: string;
+  kind: "PAID" | "CASH_DUE";
+  createdAt: string;
+  paymentMethod: PaymentMethod;
+  paymentState: "cash_due" | "demo_paid";
+  operation: string;
+  lineItems: ReceiptLine[];
+  subtotal: number;
+  total: number;
+  demo: true;
+};
+export type ReceiptSummary = Pick<
+  Receipt,
+  "lineItems" | "subtotal" | "total" | "operation"
+>;
 export type DemoRequest = {
   id: string;
   kind: RequestKind;
   snapshot: unknown;
   status: "submitted" | "pending" | "confirmed";
   paymentSelection: "card" | "apple-pay" | "cash" | null;
+  accessMode: AccessMode;
+  receipt: Receipt | null;
   demo: true;
 };
-type AccessMode = "google-demo" | "email-demo" | "guest" | null;
+export type { AccessMode } from "@/data/payment";
 type State = {
   orderMode: "dineIn" | "pickup" | null;
   orderTableId: string | null;
@@ -52,7 +81,11 @@ type State = {
   setAccess: (v: AccessMode) => void;
   submit: (kind: RequestKind) => void;
   advanceRequest: () => void;
-  selectPayment: (v: DemoRequest["paymentSelection"]) => void;
+  selectPayment: (
+    v: PaymentMethod,
+    summary: ReceiptSummary,
+  ) => void;
+  completePayment: (summary: ReceiptSummary) => void;
   resetFlow: (kind: RequestKind) => void;
 };
 const emptyReservation: Reservation = {
@@ -118,6 +151,8 @@ export const useDemoStore = create<State>()(
             snapshot,
             status: "submitted",
             paymentSelection: null,
+            accessMode: s.accessMode,
+            receipt: null,
             demo: true,
           },
         });
@@ -132,10 +167,72 @@ export const useDemoStore = create<State>()(
               }
             : null,
         })),
-      selectPayment: (v) =>
-        set((s) => ({
-          request: s.request ? { ...s.request, paymentSelection: v } : null,
-        })),
+      selectPayment: (v, summary) =>
+        set((s) => {
+          const req = s.request;
+          const accessMode = req?.accessMode ?? s.accessMode;
+          if (
+            !req ||
+            req.status !== "confirmed" ||
+            req.receipt ||
+            req.kind === "tableReservation" ||
+            ((accessMode !== "google-demo" && accessMode !== "email-demo") &&
+              v !== "cash")
+          )
+            return {};
+          const id = crypto.randomUUID();
+          const createdAt = new Date().toISOString();
+          return {
+            request: {
+              ...req,
+              paymentSelection: v,
+              ...(v === "cash"
+                ? {
+                    receipt: {
+                      id,
+                      requestId: req.id,
+                      kind: "CASH_DUE" as const,
+                      createdAt,
+                      paymentMethod: v,
+                      paymentState: "cash_due" as const,
+                      ...summary,
+                      demo: true as const,
+                    },
+                  }
+                : { receipt: null }),
+            },
+          };
+        }),
+      completePayment: (summary) =>
+        set((s) => {
+          const req = s.request;
+          const accessMode = req?.accessMode ?? s.accessMode;
+          if (
+            !req ||
+            req.status !== "confirmed" ||
+            req.receipt ||
+            req.kind === "tableReservation" ||
+            (accessMode !== "google-demo" && accessMode !== "email-demo") ||
+            (req.paymentSelection !== "card" &&
+              req.paymentSelection !== "apple-pay")
+          )
+            return {};
+          return {
+            request: {
+              ...req,
+              receipt: {
+                ...summary,
+                id: crypto.randomUUID(),
+                requestId: req.id,
+                kind: "PAID",
+                createdAt: new Date().toISOString(),
+                paymentMethod: req.paymentSelection,
+                paymentState: "demo_paid",
+                demo: true,
+              },
+            },
+          };
+        }),
       resetFlow: (kind) =>
         set((s) => ({
           ...(kind === "order"

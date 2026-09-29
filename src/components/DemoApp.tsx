@@ -13,7 +13,6 @@ import {
   Plus,
   ShoppingBag,
   X,
-  RotateCcw,
   CreditCard,
   Banknote,
   Coffee,
@@ -39,8 +38,28 @@ import {
   unitPrice,
   type Product,
 } from "@/data/menu";
-import { periods, rates, rooms, type Period } from "@/data/coworking";
-import { useDemoStore, type CartItem, type RequestKind } from "@/store/demo";
+import {
+  coworkingQuote,
+  hourlyCoworkRate,
+  periods,
+  rates,
+  rooms,
+  type Period,
+} from "@/data/coworking";
+import {
+  availablePaymentMethods,
+  canPayRequest,
+  type PaymentMethod,
+} from "@/data/payment";
+import {
+  useDemoStore,
+  type CartItem,
+  type ReceiptSummary,
+  type CoworkDraft,
+  type DemoRequest,
+  type RequestKind,
+} from "@/store/demo";
+import Receipt from "@/components/Receipt";
 
 const productById = (id: string) => products.find((p) => p.id === id);
 const selectedLabels = (p: Product, selections: Record<string, string>) =>
@@ -977,98 +996,22 @@ function Floorplan({
   selected: string | null;
   onSelect: (id: string) => void;
 }) {
-  const stage = useRef<HTMLDivElement>(null);
-  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const lastPinch = useRef<number | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
   const source =
     kind === "table"
       ? "/floorplans/planta-baja.svg"
       : "/floorplans/segundo-piso.svg";
   const zones = kind === "table" ? tables : roomZones;
-  function clamp(z: number, x: number, y: number) {
-    const el = stage.current;
-    if (!el) return { x: 0, y: 0 };
-    const w = el.clientWidth,
-      h = el.clientHeight;
-    return {
-      x: Math.min(0, Math.max(w - w * z, x)),
-      y: Math.min(0, Math.max(h - h * z, y)),
-    };
-  }
-  function changeZoom(next: number) {
-    const z = Math.min(2.5, Math.max(1, next));
-    setZoom(z);
-    setPan((p) => clamp(z, p.x, p.y));
-  }
-  function onMove(e: React.PointerEvent) {
-    const prev = pointers.current.get(e.pointerId);
-    if (!prev) return;
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    const vals = [...pointers.current.values()];
-    if (vals.length === 2) {
-      const dist = Math.hypot(vals[0].x - vals[1].x, vals[0].y - vals[1].y);
-      if (lastPinch.current) {
-        const next = Math.min(
-          2.5,
-          Math.max(1, (zoom * dist) / lastPinch.current),
-        );
-        setZoom(next);
-        setPan((p) => clamp(next, p.x, p.y));
-      }
-      lastPinch.current = dist;
-    } else if (vals.length === 1 && zoom > 1) {
-      setPan((p) =>
-        clamp(zoom, p.x + e.clientX - prev.x, p.y + e.clientY - prev.y),
-      );
-    }
-  }
-  function onEnd(e: React.PointerEvent) {
-    pointers.current.delete(e.pointerId);
-    lastPinch.current = null;
-  }
+  const pointerStart = useRef(new Map<number, { x: number; y: number }>());
+  const suppressTap = useRef(false);
+  const clearSuppressedTap = () => {
+    window.setTimeout(() => {
+      suppressTap.current = false;
+    }, 0);
+  };
   return (
     <div className="plan-shell">
-      <div className="plan-toolbar" aria-label="Controles del plano">
-        <button
-          aria-label="Acercar plano"
-          onClick={() => changeZoom(zoom + 0.25)}
-        >
-          <Plus size={18} />
-        </button>
-        <button
-          aria-label="Alejar plano"
-          onClick={() => changeZoom(zoom - 0.25)}
-        >
-          <Minus size={18} />
-        </button>
-        <button
-          aria-label="Restablecer plano"
-          onClick={() => {
-            setZoom(1);
-            setPan({ x: 0, y: 0 });
-          }}
-        >
-          <RotateCcw size={17} />
-        </button>
-      </div>
-      <div
-        className="plan-stage"
-        ref={stage}
-        onPointerDown={(e) => {
-          pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        }}
-        onPointerMove={onMove}
-        onPointerUp={onEnd}
-        onPointerCancel={onEnd}
-      >
-        <div
-          className="plan-scaled"
-          style={{
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          }}
-        >
+      <div className="plan-stage">
+        <div className="plan-scaled">
           <Image
             src={source}
             alt={
@@ -1106,7 +1049,38 @@ function Floorplan({
                 }
                 aria-pressed={selected === z.id}
                 className={`plan-hotspot ${selected === z.id ? "selected" : ""}`}
-                onClick={() => onSelect(z.id)}
+                onPointerDown={(e) =>
+                  pointerStart.current.set(e.pointerId, {
+                    x: e.clientX,
+                    y: e.clientY,
+                  })
+                }
+                onPointerMove={(e) => {
+                  const start = pointerStart.current.get(e.pointerId);
+                  if (
+                    e.pointerType === "touch" &&
+                    start &&
+                    Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10
+                  )
+                    suppressTap.current = true;
+                }}
+                onPointerUp={(e) => {
+                  pointerStart.current.delete(e.pointerId);
+                  clearSuppressedTap();
+                }}
+                onPointerCancel={(e) => {
+                  pointerStart.current.delete(e.pointerId);
+                  clearSuppressedTap();
+                }}
+                onClick={(e) => {
+                  if (suppressTap.current) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    suppressTap.current = false;
+                    return;
+                  }
+                  onSelect(z.id);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
@@ -1665,25 +1639,56 @@ function CoworkingConfigure() {
   const room = rooms.find((r) => r.id === d.roomId);
   const rate = rates.find((r) => r.id === d.rateId);
   const [error, setError] = useState("");
+  const minimum =
+    d.rateId === "light" && d.period === "hour"
+      ? (rates.find((item) => item.id === "light")?.minHours ?? 1)
+      : 1;
+  const quote = coworkingQuote(d.rateId, d.period, d.duration, d.people);
+  const longTerm = d.period === "week" || d.period === "month";
+
   function next() {
-    if (
-      !d.rateId ||
-      !d.period ||
-      !d.duration ||
-      !d.date ||
-      !d.time ||
-      !d.people
-    ) {
-      setError("Completa tarifa, duración, fecha, hora y personas.");
+    if (!d.rateId || !d.period || !d.duration || !d.date || !d.people) {
+      setError("Completa tarifa, periodo, cantidad, fecha y personas.");
       return;
     }
-    if (d.rateId === "light" && d.period === "hour" && d.duration < 3) {
-      setError("La tarifa Light requiere un mínimo de 3 horas.");
+    if (d.period === "hour" && !d.time) {
+      setError("Indica la hora de inicio.");
+      return;
+    }
+    if (d.duration < minimum) {
+      setError(`La tarifa Light requiere un mínimo de ${minimum} horas.`);
+      return;
+    }
+    if (d.people > (room?.capacity ?? 0)) {
+      setError(`Este cuarto admite hasta ${room?.capacity} personas.`);
       return;
     }
     setError("");
     router.push("/coworking/revision");
   }
+
+  function requestLongStay() {
+    if (!room || !rate || !d.period || !d.date || !d.people || d.duration < 1)
+      return;
+    const periodName = periods.find((item) => item.id === d.period)?.name.toLowerCase();
+    const message = [
+      "Hola, quiero solicitar información para reservar coworking en Lunario.",
+      "",
+      `Espacio: ${room.name}`,
+      `Capacidad: ${room.capacity} personas`,
+      `Personas: ${d.people}`,
+      `Tarifa: ${rate.name}`,
+      `Periodo: ${d.duration} ${periodName}`,
+      `Fecha deseada: ${d.date}`,
+      "¿Me pueden confirmar disponibilidad y condiciones?",
+    ].join("\n");
+    window.open(
+      `https://wa.me/527711811972?text=${encodeURIComponent(message)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }
+
   return (
     <Guard valid={!!room} to="/coworking">
       <main>
@@ -1702,15 +1707,16 @@ function CoworkingConfigure() {
                   key={r.id}
                   aria-pressed={d.rateId === r.id}
                   className={`rate-card ${d.rateId === r.id ? "selected" : ""}`}
-                  onClick={() =>
+                  onClick={() => {
+                    const nextMinimum =
+                      r.id === "light" && d.period === "hour"
+                        ? (r.minHours ?? 1)
+                        : 1;
                     set({
                       rateId: r.id,
-                      duration:
-                        r.id === "light" && d.period === "hour"
-                          ? Math.max(3, d.duration)
-                          : d.duration,
-                    })
-                  }
+                      duration: Math.max(nextMinimum, d.duration),
+                    });
+                  }}
                 >
                   <span className="eyebrow">TARIFA</span>
                   <strong>{r.name}</strong>
@@ -1719,43 +1725,61 @@ function CoworkingConfigure() {
                 </button>
               ))}
             </div>
-            <div className="form-panel cowork-fields">
+            <section className="form-panel cowork-fields">
+              <fieldset className="duration-field">
+                <legend>¿Cómo quieres reservar?</legend>
+                <div className="period-options" role="group" aria-label="Periodo de coworking">
+                  {periods.map((period) => (
+                    <button
+                      type="button"
+                      key={period.id}
+                      className={d.period === period.id ? "selected" : ""}
+                      aria-pressed={d.period === period.id}
+                      onClick={() => {
+                        const nextMinimum =
+                          d.rateId === "light" && period.id === "hour"
+                            ? (rates.find((item) => item.id === "light")?.minHours ?? 1)
+                            : 1;
+                        set({
+                          period: period.id,
+                          duration:
+                            d.period === period.id
+                              ? Math.max(nextMinimum, d.duration)
+                              : nextMinimum,
+                          time: period.id === "hour" ? d.time : "",
+                        });
+                        setError("");
+                      }}
+                    >
+                      <strong>
+                        {period.id === "hour"
+                          ? "Por hora"
+                          : period.id === "day"
+                            ? "Por día"
+                            : period.name}
+                      </strong>
+                      <small>
+                        {period.id === "week" || period.id === "month"
+                          ? "Atención por WhatsApp"
+                          : "Solicitud en línea"}
+                      </small>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
               <div className="field-grid">
                 <label>
-                  Periodo
-                  <select
-                    value={d.period ?? ""}
-                    onChange={(e) => {
-                      const period = e.target.value as Period;
-                      set({
-                        period,
-                        duration:
-                          d.rateId === "light" && period === "hour"
-                            ? Math.max(3, d.duration)
-                            : d.duration,
-                      });
-                    }}
-                  >
-                    <option value="">Selecciona un periodo</option>
-                    {periods.map((p) => (
-                      <option value={p.id} key={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Duración
+                  Cantidad
                   <input
                     type="number"
-                    min={d.rateId === "light" && d.period === "hour" ? 3 : 1}
+                    min={minimum}
                     step="1"
                     value={d.duration || ""}
                     onChange={(e) =>
                       set({
                         duration: Math.max(
-                          0,
-                          Math.floor(Number(e.target.value)),
+                          minimum,
+                          Math.floor(Number(e.target.value) || minimum),
                         ),
                       })
                     }
@@ -1763,7 +1787,7 @@ function CoworkingConfigure() {
                 </label>
                 <label>
                   <span className="field-label">
-                    <CalendarDays size={16} /> Fecha
+                    <CalendarDays size={16} /> Fecha deseada
                   </span>
                   <input
                     type="date"
@@ -1771,16 +1795,18 @@ function CoworkingConfigure() {
                     onChange={(e) => set({ date: e.target.value })}
                   />
                 </label>
-                <label>
-                  <span className="field-label">
-                    <Clock size={16} /> Hora
-                  </span>
-                  <input
-                    type="time"
-                    value={d.time}
-                    onChange={(e) => set({ time: e.target.value })}
-                  />
-                </label>
+                {d.period === "hour" && (
+                  <label>
+                    <span className="field-label">
+                      <Clock size={16} /> Hora de inicio
+                    </span>
+                    <input
+                      type="time"
+                      value={d.time}
+                      onChange={(e) => set({ time: e.target.value })}
+                    />
+                  </label>
+                )}
                 <label>
                   <span className="field-label">
                     <Users size={16} /> Personas
@@ -1795,7 +1821,7 @@ function CoworkingConfigure() {
                       set({
                         people: Math.min(
                           room?.capacity ?? 10,
-                          Math.max(0, Math.floor(Number(e.target.value))),
+                          Math.max(0, Math.floor(Number(e.target.value) || 0)),
                         ),
                       })
                     }
@@ -1804,8 +1830,29 @@ function CoworkingConfigure() {
               </div>
               {d.rateId === "light" && d.period === "hour" && (
                 <p className="info-note">
-                  Renta mínima: 3 horas. Tarifa por persona publicada: 1–4
-                  personas $30; 5–10 $27; 11–16 $25.
+                  Renta mínima: {minimum} horas. Light por persona y hora:
+                  1–4 personas $30; 5–10 $27; 11–16 $25.
+                </p>
+              )}
+              {quote !== null && rate && d.period && (
+                <div className="cowork-quote" aria-live="polite">
+                  <span>
+                    {rate.name} · {d.duration}{" "}
+                    {d.period === "hour"
+                      ? d.duration === 1 ? "hora" : "horas"
+                      : d.duration === 1 ? "día" : "días"}
+                    {d.period === "hour" && rate.id === "light"
+                      ? ` · ${d.people} personas × ${formatMoney(hourlyCoworkRate(rate.id, d.people) ?? 0)}/persona/h`
+                      : ""}
+                  </span>
+                  <strong>{formatMoney(quote)} de referencia</strong>
+                  <small>Importe sujeto a confirmación de Lunario.</small>
+                </div>
+              )}
+              {longTerm && (
+                <p className="info-note">
+                  Las solicitudes por semana o mes se atienden por WhatsApp. No
+                  se confirma ni se cobra una reservación desde esta página.
                 </p>
               )}
               {error && (
@@ -1813,10 +1860,20 @@ function CoworkingConfigure() {
                   {error}
                 </p>
               )}
-              <button className="btn dark" onClick={next}>
-                Revisar solicitud <ArrowRight size={17} />
-              </button>
-            </div>
+              {longTerm ? (
+                <button
+                  className="btn dark"
+                  disabled={!rate || !d.date || !d.people || d.duration < 1}
+                  onClick={requestLongStay}
+                >
+                  Solicitar por WhatsApp <ArrowRight size={17} />
+                </button>
+              ) : (
+                <button className="btn dark" onClick={next}>
+                  Revisar solicitud <ArrowRight size={17} />
+                </button>
+              )}
+            </section>
           </div>
           <aside className="review-side cowork-summary">
             <p className="eyebrow">REFERENCIA</p>
@@ -1826,11 +1883,15 @@ function CoworkingConfigure() {
               <ReviewList
                 items={[
                   ["Tarifa", rate.name],
+                  ["Periodo", periods.find((p) => p.id === d.period)?.name ?? ""],
                   [
-                    "Periodo",
-                    periods.find((p) => p.id === d.period)?.name ?? "",
+                    "Cantidad",
+                    `${d.duration} ${d.period === "hour" ? "horas" : d.period === "day" ? "días" : d.period === "week" ? "semanas" : "meses"}`,
                   ],
-                  ["Tarifa publicada", formatMoney(rate.prices[d.period])],
+                  [
+                    "Referencia",
+                    quote === null ? "Solicitud por WhatsApp" : formatMoney(quote),
+                  ],
                 ]}
               />
             )}
@@ -1857,10 +1918,12 @@ function CoworkingReview() {
           period &&
           d.duration &&
           d.date &&
-          d.time &&
+          (period.id !== "hour" || d.time) &&
           d.people &&
           d.people <= room.capacity &&
-          (rate.id !== "light" || period.id !== "hour" || d.duration >= 3)
+          period.id !== "week" &&
+          period.id !== "month" &&
+          (rate.id !== "light" || period.id !== "hour" || d.duration >= (rate.minHours ?? 1))
         )
       }
       to={room ? "/coworking/configurar" : "/coworking"}
@@ -1869,7 +1932,7 @@ function CoworkingReview() {
         <StepHeader
           eyebrow="COWORKING / REVISIÓN"
           title="Revisa tu espacio"
-          description="Esta es una solicitud. Lunario confirmaría su aplicación y condiciones."
+          description="Revisa la referencia de tarifa y envía una solicitud sujeta a confirmación de Lunario."
           back="/coworking/configurar"
         />
         <div className="wrap review-layout">
@@ -1885,11 +1948,11 @@ function CoworkingReview() {
                   `${d.duration} ${d.duration > 1 ? ({ hour: "horas", day: "días", week: "semanas", month: "meses" } as const)[d.period ?? "hour"] : period?.name.toLowerCase()}`,
                 ],
                 ["Fecha", d.date],
-                ["Hora", d.time],
+                ...(d.period === "hour" ? [["Hora de inicio", d.time] as [string, string]] : []),
                 ["Personas", String(d.people)],
                 [
-                  "Tarifa publicada",
-                  rate && d.period ? formatMoney(rate.prices[d.period]) : "",
+                  "Importe de referencia",
+                  formatMoney(coworkingQuote(d.rateId, d.period, d.duration, d.people) ?? 0),
                 ],
               ]}
             />
@@ -1904,8 +1967,7 @@ function CoworkingReview() {
             <p className="eyebrow">CONFIRMACIÓN PENDIENTE</p>
             <h2>Todo listo para solicitar.</h2>
             <p className="muted">
-              Aplicación de tarifa sujeta a confirmación de Lunario. No se
-              calcula un total definitivo ni se realiza un cobro.
+              Esta referencia no confirma disponibilidad ni procesa un cobro.
             </p>
             <ReviewActions kind="coworking" />
           </aside>
@@ -1914,10 +1976,65 @@ function CoworkingReview() {
     </Guard>
   );
 }
+function requestReceiptSummary(req: DemoRequest): ReceiptSummary | null {
+  if (!canPayRequest(req.kind)) return null;
+  if (req.kind === "order") {
+    const snapshot = req.snapshot as {
+      mode: "dineIn" | "pickup" | null;
+      cart: CartItem[];
+    };
+    const lineItems = (snapshot.cart ?? []).flatMap((item) => {
+      const product = productById(item.productId);
+      if (!product) return [];
+      const labels = selectedLabels(product, item.selections);
+      return [{
+        description: `${item.quantity} × ${product.name}${labels ? ` · ${labels}` : ""}`,
+        quantity: item.quantity,
+        total: unitPrice(product, item.selections) * item.quantity,
+      }];
+    });
+    const total = lineItems.reduce((sum, item) => sum + item.total, 0);
+    return {
+      operation: snapshot.mode === "pickup" ? "Pedido para recoger" : "Pedido en Lunario",
+      lineItems,
+      subtotal: total,
+      total,
+    };
+  }
+
+  const draft = req.snapshot as CoworkDraft;
+  const room = rooms.find((item) => item.id === draft.roomId);
+  const rate = rates.find((item) => item.id === draft.rateId);
+  const unit = draft.period === "hour" ? "horas" : "días";
+  const total = coworkingQuote(
+    draft.rateId,
+    draft.period,
+    draft.duration,
+    draft.people,
+  ) ?? 0;
+  return {
+    operation: "Coworking",
+    lineItems: [{
+      description: `${room?.name ?? "Espacio de coworking"} · ${rate?.name ?? "Tarifa"} · ${draft.duration} ${unit} · ${draft.people} ${draft.people === 1 ? "persona" : "personas"}`,
+      quantity: draft.duration,
+      total,
+    }],
+    subtotal: total,
+    total,
+  };
+}
+
 function RequestView() {
   const req = useDemoStore((s) => s.request);
   const advance = useDemoStore((s) => s.advanceRequest);
   const payment = useDemoStore((s) => s.selectPayment);
+  const completePayment = useDemoStore((s) => s.completePayment);
+  const accessMode = useDemoStore((s) => s.accessMode);
+  const payable = req ? canPayRequest(req.kind) : false;
+  const paymentMethods = req
+    ? availablePaymentMethods(req.kind, req.accessMode ?? accessMode)
+    : [];
+  const summary = req ? requestReceiptSummary(req) : null;
   const target =
     req?.kind === "order"
       ? "/pedido"
@@ -1981,50 +2098,55 @@ function RequestView() {
               Simular confirmación <ArrowRight size={17} />
             </button>
           )}
-          {req?.status === "confirmed" && (
+          {req?.status === "confirmed" && payable && !req.receipt && (
             <div className="payment-panel">
               <h2>Opciones de pago</h2>
               <p className="muted">
-                Así podría continuar la experiencia después de confirmar.
+                Elige cómo completar esta demostración. No se procesan cobros.
               </p>
               <div className="payment-options">
-                <button
-                  className={req.paymentSelection === "card" ? "selected" : ""}
-                  aria-pressed={req.paymentSelection === "card"}
-                  onClick={() => payment("card")}
-                >
-                  <CreditCard />
-                  Tarjeta
-                </button>
-                <button
-                  className={
-                    req.paymentSelection === "apple-pay" ? "selected" : ""
-                  }
-                  aria-pressed={req.paymentSelection === "apple-pay"}
-                  onClick={() => payment("apple-pay")}
-                >
-                  <CreditCard />
-                  Apple Pay
-                </button>
-                <button
-                  className={req.paymentSelection === "cash" ? "selected" : ""}
-                  aria-pressed={req.paymentSelection === "cash"}
-                  onClick={() => payment("cash")}
-                >
-                  <Banknote />
-                  Efectivo
-                </button>
+                {paymentMethods.map((method) => (
+                  <button
+                    key={method}
+                    className={req.paymentSelection === method ? "selected" : ""}
+                    aria-pressed={req.paymentSelection === method}
+                    onClick={() => summary && payment(method, summary)}
+                  >
+                    {method === "cash" ? <Banknote /> : <CreditCard />}
+                    {method === "apple-pay"
+                      ? "Apple Pay"
+                      : method === "card"
+                        ? "Tarjeta"
+                        : "Efectivo"}
+                  </button>
+                ))}
               </div>
-              {req.paymentSelection && (
+              {(req.accessMode ?? accessMode) !== "google-demo" &&
+                (req.accessMode ?? accessMode) !== "email-demo" && (
+                <p className="info-note">
+                  Inicia sesión para pagar con tarjeta o Apple Pay.
+                </p>
+              )}
+              {req.paymentSelection && req.paymentSelection !== "cash" && (
+                <button
+                  className="btn dark payment-complete"
+                  onClick={() => summary && completePayment(summary)}
+                >
+                  Simular pago con {req.paymentSelection === "card" ? "tarjeta" : "Apple Pay"}
+                  <ArrowRight size={17} />
+                </button>
+              )}
+              {req.paymentSelection && req.paymentSelection !== "cash" && (
                 <p className="payment-selected">
-                  <Check size={17} /> Opción visual seleccionada
+                  <Check size={17} /> Método seleccionado para la simulación
                 </p>
               )}
               <p className="info-note">
-                Demostración visual. No se realizará ningún cobro.
+                Tarjeta y Apple Pay son simulaciones frontend.
               </p>
             </div>
           )}
+          {req?.receipt && <Receipt receipt={req.receipt} />}
           <Link className="back-link" href="/">
             Volver al inicio
           </Link>
