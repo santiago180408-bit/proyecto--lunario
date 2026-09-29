@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { Period } from "@/data/coworking";
+import { localDateKey } from "@/data/order";
 import type {
   AccessMode,
   PaymentMethod,
@@ -65,6 +66,8 @@ export type { AccessMode } from "@/data/payment";
 type State = {
   orderMode: "dineIn" | "pickup" | null;
   orderTableId: string | null;
+  pickupDate: string;
+  pickupTime: string;
   cart: CartItem[];
   reservation: Reservation;
   cowork: CoworkDraft;
@@ -72,6 +75,8 @@ type State = {
   request: DemoRequest | null;
   setOrderMode: (v: State["orderMode"]) => void;
   setOrderTable: (v: string | null) => void;
+  setPickupTime: (v: string) => void;
+  refreshPickupDate: () => void;
   addItem: (item: CartItem) => void;
   updateItem: (lineId: string, item: CartItem) => void;
   setQuantity: (lineId: string, quantity: number) => void;
@@ -108,17 +113,30 @@ export const useDemoStore = create<State>()(
     (set, get) => ({
       orderMode: null,
       orderTableId: null,
+      pickupDate: "",
+      pickupTime: "",
       cart: [],
       reservation: emptyReservation,
       cowork: emptyCowork,
       accessMode: null,
       request: null,
       setOrderMode: (v) =>
-        set({
+        set((s) => ({
           orderMode: v,
-          orderTableId: v === "dineIn" ? get().orderTableId : null,
-        }),
+          orderTableId: v === "dineIn" ? s.orderTableId : null,
+          ...(v === "pickup" && s.pickupDate !== localDateKey()
+            ? { pickupDate: localDateKey(), pickupTime: "" }
+            : {}),
+        })),
       setOrderTable: (v) => set({ orderTableId: v }),
+      setPickupTime: (v) =>
+        set({ pickupDate: localDateKey(), pickupTime: v }),
+      refreshPickupDate: () =>
+        set((s) =>
+          s.pickupDate === localDateKey()
+            ? {}
+            : { pickupDate: localDateKey(), pickupTime: "" },
+        ),
       addItem: (item) => set((s) => ({ cart: [...s.cart, item] })),
       updateItem: (lineId, item) =>
         set((s) => ({
@@ -236,7 +254,13 @@ export const useDemoStore = create<State>()(
       resetFlow: (kind) =>
         set((s) => ({
           ...(kind === "order"
-            ? { orderMode: null, orderTableId: null, cart: [] }
+            ? {
+                orderMode: null,
+                orderTableId: null,
+                pickupDate: "",
+                pickupTime: "",
+                cart: [],
+              }
             : kind === "tableReservation"
               ? { reservation: emptyReservation }
               : { cowork: emptyCowork }),
@@ -249,6 +273,8 @@ export const useDemoStore = create<State>()(
       partialize: (s) => ({
         orderMode: s.orderMode,
         orderTableId: s.orderTableId,
+        pickupDate: s.pickupDate,
+        pickupTime: s.pickupTime,
         cart: s.cart,
         reservation: s.reservation,
         cowork: s.cowork,

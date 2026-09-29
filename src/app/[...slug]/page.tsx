@@ -4,6 +4,7 @@ export function generateStaticParams() {
   return [
     { slug: ["menu"] },
     { slug: ["pedido"] },
+    { slug: ["pedido", "recoger-hora"] },
     { slug: ["pedido", "mesa"] },
     { slug: ["pedido", "revision"] },
     { slug: ["reservar"] },

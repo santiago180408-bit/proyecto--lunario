@@ -46,6 +46,7 @@ import {
   rooms,
   type Period,
 } from "@/data/coworking";
+import { localDateKey } from "@/data/order";
 import {
   availablePaymentMethods,
   canPayRequest,
@@ -105,10 +106,14 @@ function StepHeader({
     : path.startsWith("/coworking")
       ? ["Espacio", "Tarifa y fecha", "Revisión"]
       : path.startsWith("/pedido")
-        ? ["Modalidad", "Tu pedido", "Revisión"]
+        ? path === "/pedido/recoger-hora"
+          ? ["Modalidad", "Recogida", "Tu pedido", "Revisión"]
+          : ["Modalidad", "Tu pedido", "Revisión"]
         : [];
   const current = path.endsWith("revision")
     ? 2
+    : path === "/pedido/recoger-hora"
+      ? 1
     : path.endsWith("mesa") || path.endsWith("configurar")
       ? 1
       : 0;
@@ -213,7 +218,12 @@ function Dialog({
 }
 function Header() {
   const path = usePathname();
+  const router = useRouter();
   const cart = useDemoStore((s) => s.cart);
+  const orderMode = useDemoStore((s) => s.orderMode);
+  const pickupDate = useDemoStore((s) => s.pickupDate);
+  const pickupTime = useDemoStore((s) => s.pickupTime);
+  const refreshPickupDate = useDemoStore((s) => s.refreshPickupDate);
   const count = cart.reduce((n, item) => n + item.quantity, 0);
   const showCart =
     count > 0 &&
@@ -221,8 +231,9 @@ function Header() {
   const [toast, setToast] = useState("");
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
-    const notify = () => {
-      setToast("Pedido actualizado");
+    const notify = (event: Event) => {
+      const action = (event as CustomEvent<{ action?: string }>).detail?.action;
+      setToast(action === "added" ? "Agregado al pedido" : "Pedido actualizado");
       clearTimeout(timer);
       timer = setTimeout(() => setToast(""), 2200);
     };
@@ -236,6 +247,7 @@ function Header() {
     document.body.classList.toggle("has-cart", showCart);
     return () => document.body.classList.remove("has-cart");
   }, [showCart]);
+  useEffect(() => refreshPickupDate(), [refreshPickupDate]);
   const [menu, setMenu] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   useEffect(() => setMenu(false), [path]);
@@ -301,23 +313,30 @@ function Header() {
             )}
             <button
               className="icon-btn"
+              type="button"
               aria-label={menu ? "Cerrar menú" : "Abrir menú"}
               aria-expanded={menu}
               onClick={() => setMenu(!menu)}
             >
-              {menu ? <X /> : <MenuIcon />}
+              <span className={`menu-icon ${menu ? "is-open" : ""}`} aria-hidden="true">
+                <MenuIcon className="menu-glyph" />
+                <X className="close-glyph" />
+              </span>
             </button>
           </div>
         </div>
-        {menu && (
-          <nav className="mobile-nav" aria-label="Menú móvil">
-            <Link href="/">Inicio</Link>
-            <Link href="/menu">Menú</Link>
-            <Link href="/reservar">Reservar</Link>
-            <Link href="/coworking">Coworking</Link>
-            <Link href="/pedido">Pedir</Link>
-          </nav>
-        )}
+        <nav
+          className={`mobile-nav ${menu ? "is-open" : ""}`}
+          aria-label="Menú móvil"
+          aria-hidden={!menu}
+          inert={!menu}
+        >
+          <Link href="/">Inicio</Link>
+          <Link href="/menu">Menú</Link>
+          <Link href="/reservar">Reservar</Link>
+          <Link href="/coworking">Coworking</Link>
+          <Link href="/pedido">Pedir</Link>
+        </nav>
       </header>
       {showCart && !cartOpen && !menu && (
         <button
@@ -330,8 +349,13 @@ function Header() {
             <b key={count}>{count}</b>
           </span>
           <span>
-            <small>Tu pedido</small>
+            <small>{orderMode === "pickup" ? "Para recoger" : "Tu pedido"}</small>
             <strong>{formatMoney(cartTotal(cart))}</strong>
+            {orderMode === "pickup" && pickupTime && (
+              <small className="pickup-cart-context">
+                {pickupDate === localDateKey() ? `Hoy · ${pickupTime}` : "Hora por elegir"}
+              </small>
+            )}
           </span>
           <span className="cart-cta">
             Ver pedido <ArrowRight size={18} />
@@ -347,6 +371,89 @@ function Header() {
         )}
       </div>
       {cartOpen && <CartDialog onClose={() => setCartOpen(false)} />}
+    </>
+  );
+}
+function PickupTimeDialog({ onClose }: { onClose: () => void }) {
+  const pickupTime = useDemoStore((s) => s.pickupTime);
+  const setPickupTime = useDemoStore((s) => s.setPickupTime);
+  const [time, setTime] = useState(pickupTime);
+  const [error, setError] = useState(false);
+  return (
+    <Dialog
+      title="Cambiar hora de recogida"
+      onClose={onClose}
+      className="pickup-time-dialog"
+    >
+      <p className="eyebrow">PARA RECOGER · HOY</p>
+      <h2>¿A qué hora pasarás?</h2>
+      <label>
+        <span className="field-label">
+          <Clock size={16} /> Hora preferida de recogida
+        </span>
+        <input
+          autoFocus
+          type="time"
+          value={time}
+          aria-invalid={error}
+          aria-describedby={error ? "pickup-time-error" : "pickup-time-note"}
+          onChange={(event) => {
+            setTime(event.target.value);
+            setError(false);
+          }}
+        />
+      </label>
+      {error && (
+        <p id="pickup-time-error" className="field-error" role="alert">
+          Selecciona una hora para recoger.
+        </p>
+      )}
+      <p id="pickup-time-note" className="muted pickup-time-note">
+        Es una hora preferida para hoy, no una confirmación de disponibilidad.
+      </p>
+      <button
+        className="btn dark full"
+        onClick={() => {
+          if (!time) {
+            setError(true);
+            return;
+          }
+          setPickupTime(time);
+          onClose();
+        }}
+      >
+        Guardar hora <Check size={17} />
+      </button>
+    </Dialog>
+  );
+}
+function PickupContext() {
+  const mode = useDemoStore((s) => s.orderMode);
+  const pickupDate = useDemoStore((s) => s.pickupDate);
+  const pickupTime = useDemoStore((s) => s.pickupTime);
+  const [editing, setEditing] = useState(false);
+  if (mode !== "pickup") return null;
+  return (
+    <>
+      <div className="pickup-context">
+        <span className="pickup-context-icon"><PackageCheck size={17} /></span>
+        <span className="pickup-context-copy">
+          <strong>Para recoger</strong>
+          <small>
+            {pickupDate === localDateKey() && pickupTime
+              ? `Hoy · ${pickupTime}`
+              : "Recoger hoy · hora por elegir"}
+          </small>
+        </span>
+        <button
+          type="button"
+          className="pickup-context-edit"
+          onClick={() => setEditing(true)}
+        >
+          Cambiar
+        </button>
+      </div>
+      {editing && <PickupTimeDialog onClose={() => setEditing(false)} />}
     </>
   );
 }
@@ -559,6 +666,8 @@ function ProductCard({
 }
 function MenuView() {
   const mode = useDemoStore((s) => s.orderMode);
+  const pickupDate = useDemoStore((s) => s.pickupDate);
+  const pickupTime = useDemoStore((s) => s.pickupTime);
   const cart = useDemoStore((s) => s.cart);
   const [active, setActive] = useState<string>("cafe");
   const [query, setQuery] = useState("");
@@ -579,12 +688,14 @@ function MenuView() {
   const [open, setOpen] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   return (
+    <Guard valid={mode !== "pickup" || (pickupDate === localDateKey() && !!pickupTime)} to="/pedido/recoger-hora">
     <>
       <StepHeader
         eyebrow="MENÚ LUNARIO"
         title="La carta"
         description="Sabores para quedarte un poco más."
       />
+      {mode === "pickup" && <div className="wrap"><PickupContext /></div>}
       <div className="wrap search-wrap">
         <label className="menu-search">
           <Search size={20} />
@@ -656,6 +767,7 @@ function MenuView() {
       )}{" "}
       {cartOpen && <CartDialog onClose={() => setCartOpen(false)} />}
     </>
+    </Guard>
   );
 }
 function QuantityStepper({
@@ -703,14 +815,14 @@ function ProductConfigurator({
     editing?.selections ?? {},
   );
   const [quantity, setQuantity] = useState(editing?.quantity ?? 1);
-  const [error, setError] = useState("");
+  const [missingGroup, setMissingGroup] = useState<string | null>(null);
   const price = unitPrice(product, selections);
   function commit() {
     const missing = visibleGroups(product, selections).find(
       (g) => g.required && !selections[g.id],
     );
     if (missing) {
-      setError(`Elige ${missing.label.toLowerCase()}.`);
+      setMissingGroup(missing.id);
       document
         .querySelector<HTMLInputElement>(`[data-group="${missing.id}"] input`)
         ?.focus();
@@ -724,7 +836,7 @@ function ProductConfigurator({
     };
     if (editing) update(editing.lineId, line);
     else add(line);
-    window.dispatchEvent(new Event("lunario:cart"));
+    window.dispatchEvent(new CustomEvent("lunario:cart", { detail: { action: editing ? "updated" : "added" } }));
     onClose();
     if (!mode && !editing) router.push("/pedido");
   }
@@ -733,9 +845,10 @@ function ProductConfigurator({
       <p className="eyebrow">LUNARIO CAFÉ</p>
       <h2>{product.name}</h2>
       {product.description && <p className="muted">{product.description}</p>}
+      {mode === "pickup" && <PickupContext />}
       <div className="config-options">
         {visibleGroups(product, selections).map((g) => (
-          <fieldset key={g.id} data-group={g.id}>
+          <fieldset key={g.id} data-group={g.id} aria-describedby={missingGroup === g.id ? `option-error-${g.id}` : undefined}>
             <legend>
               {g.label} {g.required && <span aria-hidden="true">*</span>}
             </legend>
@@ -753,7 +866,7 @@ function ProductConfigurator({
                       checked={selections[g.id] === o.id}
                       onChange={() => {
                         setSelections((s) => ({ ...s, [g.id]: o.id }));
-                        setError("");
+                        setMissingGroup(null);
                       }}
                     />
                     <span>{o.label}</span>
@@ -766,14 +879,10 @@ function ProductConfigurator({
                   </label>
                 ))}
             </div>
+            {missingGroup === g.id && <p id={`option-error-${g.id}`} className="field-error" role="alert">Selecciona {g.label.toLowerCase()}.</p>}
           </fieldset>
         ))}
       </div>
-      {error && (
-        <p className="field-error" role="alert">
-          {error}
-        </p>
-      )}
       <div className="config-footer">
         <QuantityStepper value={quantity} onChange={setQuantity} />
         <div>
@@ -806,6 +915,9 @@ function CartDialog({
   const cart = useDemoStore((s) => s.cart);
   const setQuantity = useDemoStore((s) => s.setQuantity);
   const remove = useDemoStore((s) => s.removeItem);
+  const orderMode = useDemoStore((s) => s.orderMode);
+  const pickupDate = useDemoStore((s) => s.pickupDate);
+  const pickupTime = useDemoStore((s) => s.pickupTime);
   const router = useRouter();
   const [editing, setEditing] = useState<CartItem | null>(null);
   const editProduct = editing && productById(editing.productId);
@@ -814,12 +926,13 @@ function CartDialog({
       <Dialog title="Carrito" onClose={onClose} className="cart-dialog">
         <p className="eyebrow">TU PEDIDO</p>
         <h2>Carrito</h2>
+        {orderMode === "pickup" && <PickupContext />}
         {cart.length === 0 ? (
           <div className="empty-state">
             <ShoppingBag size={32} />
             <p>Tu carrito está vacío.</p>
-            <button className="btn dark" onClick={onClose}>
-              Volver al menú
+            <button className="btn dark" onClick={() => { onClose(); router.push("/menu"); }}>
+              Ver menú
             </button>
           </div>
         ) : (
@@ -876,13 +989,16 @@ function CartDialog({
                 className="btn dark full"
                 onClick={() => {
                   onClose();
-                  router.push("/pedido/revision");
+                  router.push(!orderMode ? "/pedido" : orderMode === "pickup" && (pickupDate !== localDateKey() || !pickupTime) ? "/pedido/recoger-hora" : orderMode === "dineIn" && !useDemoStore.getState().orderTableId ? "/pedido/mesa" : "/pedido/revision");
                 }}
               >
                 Revisar pedido <ArrowRight size={16} />
               </button>
               <button className="text-action" onClick={onClose}>
                 Volver al menú
+              </button>
+              <button className="text-action" onClick={() => { onClose(); router.push("/pedido"); }}>
+                Cambiar modalidad
               </button>
             </div>
           </>
@@ -1139,6 +1255,8 @@ function Guard({
 function ChoicePage() {
   const router = useRouter();
   const set = useDemoStore((s) => s.setOrderMode);
+  const pickupDate = useDemoStore((s) => s.pickupDate);
+  const pickupTime = useDemoStore((s) => s.pickupTime);
   return (
     <main>
       <StepHeader
@@ -1167,21 +1285,92 @@ function ChoicePage() {
         <button
           className="choice-card"
           onClick={() => {
+            const hasSameDayTime =
+              pickupDate === localDateKey() && !!pickupTime;
             set("pickup");
-            router.push("/menu");
+            router.push(hasSameDayTime ? "/menu" : "/pedido/recoger-hora");
           }}
         >
           <span className="icon-holder sage">
             <PackageCheck />
           </span>
           <h2>Para recoger</h2>
-          <p>Explora el menú y prepara tu pedido.</p>
+          <p>Recoge hoy. Elige la hora preferida y prepara tu pedido.</p>
           <span className="choice-arrow">
             <ArrowRight />
           </span>
         </button>
       </div>
     </main>
+  );
+}
+function PickupTimePage() {
+  const mode = useDemoStore((s) => s.orderMode);
+  const pickupTime = useDemoStore((s) => s.pickupTime);
+  const setPickupTime = useDemoStore((s) => s.setPickupTime);
+  const router = useRouter();
+  const [error, setError] = useState(false);
+  return (
+    <Guard valid={mode === "pickup"} to="/pedido">
+      <main>
+        <StepHeader
+          eyebrow="PEDIDO / PARA RECOGER"
+          title="Recoger hoy"
+          description="Indica a qué hora prefieres pasar por tu pedido. La hora no confirma disponibilidad."
+          back="/pedido"
+        />
+        <div className="wrap form-layout pickup-layout">
+          <div className="form-panel pickup-form">
+            <p className="eyebrow">¿A qué hora pasarás?</p>
+            <label>
+              <span className="field-label">
+                <Clock size={16} /> Hora preferida de recogida
+              </span>
+              <input
+                type="time"
+                value={pickupTime}
+                aria-invalid={error}
+                aria-describedby={error ? "pickup-time-inline-error" : "pickup-time-inline-note"}
+                onChange={(event) => {
+                  setPickupTime(event.target.value);
+                  setError(false);
+                }}
+              />
+              {error && (
+                <span id="pickup-time-inline-error" className="field-error" role="alert">
+                  Selecciona una hora para recoger.
+                </span>
+              )}
+            </label>
+            <p id="pickup-time-inline-note" className="muted pickup-time-note">
+              Preferencia para hoy. No representa un horario disponible ni una
+              confirmación del pedido.
+            </p>
+            <button
+              className="btn dark full"
+              onClick={() => {
+                if (!pickupTime) {
+                  setError(true);
+                  return;
+                }
+                setPickupTime(pickupTime);
+                router.push("/menu");
+              }}
+            >
+              Continuar al menú <ArrowRight size={17} />
+            </button>
+          </div>
+          <aside className="form-aside">
+            <span>HOY · {pickupTime || "HORA PENDIENTE"}</span>
+            <h2>Tu pedido, a tu ritmo.</h2>
+            <p>
+              No usamos intervalos ni cupos simulados. El equipo confirmaría la
+              solicitud posteriormente.
+            </p>
+          </aside>
+        </div>
+      </main>
+    </Guard>
   );
 }
 function OrderTable() {
@@ -1223,13 +1412,14 @@ function ReservationStart() {
   const draft = useDemoStore((s) => s.reservation);
   const set = useDemoStore((s) => s.setReservation);
   const router = useRouter();
-  const [error, setError] = useState("");
+  const [missing, setMissing] = useState<"date" | "time" | "people" | null>(null);
   function next() {
-    if (!draft.date || !draft.time || !draft.people) {
-      setError("Completa fecha, hora y personas.");
+    const field = !draft.date ? "date" : !draft.time ? "time" : !draft.people ? "people" : null;
+    if (field) {
+      setMissing(field);
       return;
     }
-    setError("");
+    setMissing(null);
     router.push("/reservar/mesa");
   }
   return (
@@ -1249,8 +1439,10 @@ function ReservationStart() {
             <input
               type="date"
               value={draft.date}
-              onChange={(e) => set({ date: e.target.value })}
+              aria-invalid={missing === "date"}
+              onChange={(e) => { set({ date: e.target.value }); setMissing(null); }}
             />
+            {missing === "date" && <span className="field-error" role="alert">Selecciona una fecha.</span>}
           </label>
           <label>
             <span className="field-label">
@@ -1259,8 +1451,10 @@ function ReservationStart() {
             <input
               type="time"
               value={draft.time}
-              onChange={(e) => set({ time: e.target.value })}
+              aria-invalid={missing === "time"}
+              onChange={(e) => { set({ time: e.target.value }); setMissing(null); }}
             />
+            {missing === "time" && <span className="field-error" role="alert">Selecciona una hora.</span>}
           </label>
           <label>
             <span className="field-label">
@@ -1271,17 +1465,14 @@ function ReservationStart() {
               min="1"
               step="1"
               value={draft.people || ""}
+              aria-invalid={missing === "people"}
               onChange={(e) =>
-                set({ people: Math.max(0, Math.floor(Number(e.target.value))) })
+                { set({ people: Math.max(0, Math.floor(Number(e.target.value))) }); setMissing(null); }
               }
               placeholder="Número de personas"
             />
+            {missing === "people" && <span className="field-error" role="alert">Indica cuántas personas asistirán.</span>}
           </label>
-          {error && (
-            <p className="field-error" role="alert">
-              {error}
-            </p>
-          )}
           <button className="btn dark" onClick={next}>
             Elegir mesa <ArrowRight size={17} />
           </button>
@@ -1434,13 +1625,13 @@ function ReviewActions({ kind }: { kind: RequestKind }) {
     </>
   );
 }
-function ReviewList({ items }: { items: [string, string][] }) {
+function ReviewList({ items, edits = {} }: { items: [string, string][]; edits?: Record<string, { label: string; href?: string; onClick?: () => void }> }) {
   return (
     <dl className="review-list">
       {items.map(([label, value]) => (
         <div key={label}>
           <dt>{label}</dt>
-          <dd>{value}</dd>
+          <dd>{value}{edits[label] && (edits[label].href ? <Link className="review-edit" href={edits[label].href!}>{edits[label].label}</Link> : <button type="button" className="review-edit" onClick={edits[label].onClick}>{edits[label].label}</button>)}</dd>
         </div>
       ))}
     </dl>
@@ -1450,13 +1641,18 @@ function OrderReview() {
   const cart = useDemoStore((s) => s.cart);
   const mode = useDemoStore((s) => s.orderMode);
   const table = useDemoStore((s) => s.orderTableId);
+  const pickupDate = useDemoStore((s) => s.pickupDate);
+  const pickupTime = useDemoStore((s) => s.pickupTime);
+  const [editingPickup, setEditingPickup] = useState(false);
   return (
     <Guard
-      valid={!!(mode && cart.length && (mode === "pickup" || table))}
+      valid={!!(mode && cart.length && (mode === "pickup" ? pickupDate === localDateKey() && pickupTime : table))}
       to={
         !cart.length
           ? "/menu"
-          : mode === "dineIn" && !table
+            : mode === "pickup" && (pickupDate !== localDateKey() || !pickupTime)
+              ? "/pedido/recoger-hora"
+              : mode === "dineIn" && !table
             ? "/pedido/mesa"
             : "/pedido"
       }
@@ -1471,6 +1667,8 @@ function OrderReview() {
         <div className="wrap review-layout">
           <div className="review-card">
             <h2>Tu selección</h2>
+            {mode === "pickup" && <ReviewList items={[["Modalidad", "Para recoger"], ["Fecha", "Hoy"], ["Hora preferida", pickupTime]]} edits={{ "Modalidad": { label: "Cambiar", href: "/pedido" }, "Hora preferida": { label: "Cambiar hora", onClick: () => setEditingPickup(true) } }} />}
+            {mode === "dineIn" && <ReviewList items={[["Modalidad", "En Lunario"], ["Mesa", table ? "Mesa seleccionada" : "Sin mesa"]]} edits={{ "Modalidad": { label: "Cambiar", href: "/pedido" }, "Mesa": { label: "Cambiar mesa", href: "/pedido/mesa" } }} />}
             {cart.map((item) => {
               const p = productById(item.productId);
               return (
@@ -1503,22 +1701,12 @@ function OrderReview() {
           </div>
           <aside className="review-side">
             <p className="eyebrow">RESUMEN</p>
-            <ReviewList
-              items={[
-                [
-                  "Modalidad",
-                  mode === "dineIn" ? "En Lunario" : "Para recoger",
-                ],
-                ...(mode === "dineIn"
-                  ? [["Mesa", "Mesa seleccionada"] as [string, string]]
-                  : []),
-              ]}
-            />
             <p className="muted">La solicitud no realiza un pedido real.</p>
             <ReviewActions kind="order" />
           </aside>
         </div>
       </main>
+      {editingPickup && <PickupTimeDialog onClose={() => setEditingPickup(false)} />}
     </Guard>
   );
 }
@@ -1546,6 +1734,7 @@ function ReservationReview() {
                 ["Personas", String(d.people)],
                 ["Mesa", "Mesa seleccionada"],
               ]}
+              edits={{ Fecha: { label: "Cambiar", href: "/reservar" }, Hora: { label: "Cambiar", href: "/reservar" }, Personas: { label: "Cambiar", href: "/reservar" }, Mesa: { label: "Cambiar mesa", href: "/reservar/mesa" }}}
             />
             <div className="mini-plan">
               <Floorplan
@@ -1583,6 +1772,7 @@ function CoworkingStart() {
         back="/"
       />
       <div className="wrap gallery-grid">
+        {/* Producción: Lunario debe entregar o autorizar las fotografías definitivas para esta galería. */}
         {[1, 2, 3].map((n) => (
           <div key={n} className="gallery-image">
             <Image
@@ -1598,7 +1788,7 @@ function CoworkingStart() {
         <Floorplan
           kind="room"
           selected={d.roomId}
-          onSelect={(id) => set({ roomId: id, people: 0 })}
+          onSelect={(id) => { const nextRoom = rooms.find((r) => r.id === id); set({ roomId: id, people: nextRoom && d.people <= nextRoom.capacity ? d.people : 0 }); }}
         />
         <aside className="selection-panel">
           <p className="eyebrow">CUARTOS</p>
@@ -1612,7 +1802,7 @@ function CoworkingStart() {
                 key={r.id}
                 aria-pressed={d.roomId === r.id}
                 className={d.roomId === r.id ? "selected" : ""}
-                onClick={() => set({ roomId: r.id, people: 0 })}
+                onClick={() => set({ roomId: r.id, people: d.people <= r.capacity ? d.people : 0 })}
               >
                 <Laptop size={20} />
                 <span>{r.name}</span>
@@ -1955,6 +2145,7 @@ function CoworkingReview() {
                   formatMoney(coworkingQuote(d.rateId, d.period, d.duration, d.people) ?? 0),
                 ],
               ]}
+              edits={{ Capacidad: { label: "Cambiar cuarto", href: "/coworking" }, Tarifa: { label: "Cambiar", href: "/coworking/configurar" }, Periodo: { label: "Cambiar", href: "/coworking/configurar" }, Duración: { label: "Cambiar", href: "/coworking/configurar" }, Fecha: { label: "Cambiar", href: "/coworking/configurar" }, "Hora de inicio": { label: "Cambiar", href: "/coworking/configurar" }, Personas: { label: "Cambiar", href: "/coworking/configurar" }}}
             />
             {rate?.id === "light" && (
               <p className="info-note">
@@ -2163,6 +2354,7 @@ export default function DemoApp() {
     "/": <Home />,
     "/menu": <MenuView />,
     "/pedido": <ChoicePage />,
+    "/pedido/recoger-hora": <PickupTimePage />,
     "/pedido/mesa": <OrderTable />,
     "/pedido/revision": <OrderReview />,
     "/reservar": <ReservationStart />,
