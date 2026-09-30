@@ -4,6 +4,8 @@
 
 Implementación de los diez bloques del Build Brief recibido el 30/09/2026. Revisión de construcción completada en Chromium; lista para revisión independiente de Dirección/Chat 05. Esta aceptación técnica no sustituye su aprobación visual.
 
+Demo desplegada y verificada: https://3e9e296a.proyecto--lunario.pages.dev/. PR de esta fase: https://github.com/santiago180408-bit/proyecto--lunario/pull/3, con base en la entrega V1 del PR #2. No se fusionó a main.
+
 Solo cambian `/` y la nueva vista `/ordenar`, sus componentes, contenido, ilustraciones, fotografía derivada y SEO. `DemoApp.tsx`, CSS transaccional, stores, persistencia, datos de menú/coworking/pago, croquis y todas las rutas internas conservan exactamente sus archivos de la base `12a5583`.
 
 ## Referencias abiertas individualmente
@@ -64,6 +66,7 @@ Las capturas son artefactos locales de QA, no assets de producción. Hero/header
 - `SITE_URL` configura el origen real. La validación local utilizó `https://proyecto--lunario.pages.dev`, cuya respuesta HTTP 200 se verificó. Pages puede usar su `CF_PAGES_URL` real para previews cuando no se configura `SITE_URL`; no se fija un dominio dentro del código. Para hosting fuera de Pages se debe configurar `SITE_URL` antes de compilar.
 - Performance local Chromium, exportación estática sin throttling: 390 px LCP **232 ms**, CLS **0**, interacción medida **32 ms**; 1440 px LCP **224 ms**, CLS **0**, interacción **32 ms**. Son observaciones locales, no métricas de campo ni certificación de INP. El WebP del hero pesa aproximadamente **22 KB**.
 - Cero errores críticos de consola, recursos fallidos o peticiones externas en los recorridos medidos. Chromium muestra avisos no críticos de precarga de fuentes heredados de Next; no hubo fallos de fuente.
+- Cloudflare Pages: despliegue exitoso; Landing y las tres conexiones del gateway comprobadas públicamente a 390/1440 px, sin errores ni recursos fallidos. Canonical, OG y sitemap de ese preview resuelven a su `CF_PAGES_URL` real.
 
 ## Checklist de aceptación del Build Brief
 
