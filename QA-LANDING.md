@@ -2,6 +2,8 @@
 
 ## Ajuste de logo, entrada y bebidas — 30/09/2026
 
+Vista previa comprobada: https://60065d34.proyecto--lunario.pages.dev/. PR #5: https://github.com/santiago180408-bit/proyecto--lunario/pull/5. Cloudflare completó el despliegue; logo, animaciones, apartados de bebidas y Matcha con leche comprobados públicamente, sin recursos fallidos ni errores de ejecución. No fusionado a main.
+
 - [x] Hero con el logo horizontal completo del paquete aprobado, sin reconstrucción; H1 accesible y header con isotipo.
 - [x] Iconos del gateway animados automáticamente una vez al entrar en viewport: Pedir, mesa, coworking; duración 420 ms, delays 0/90/180 ms. Eventos reales de animación confirman la secuencia; reduced motion elimina las animaciones.
 - [x] Menú dividido en Matcha, Lattes saborizados y Otras bebidas. Nueve fichas independientes con presentación y leche; precios base $55/$63 y recargos publicados $0/$10/$15/$20. Aplicación a estos productos autorizada expresamente en la petición actual.
