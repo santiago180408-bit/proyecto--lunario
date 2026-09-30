@@ -24,7 +24,9 @@ Los 12 bloques del brief están cubiertos: assets/datos; foundation; Home; menú
 
 Vista local disponible durante esta sesión: http://127.0.0.1:3012/. Para Cloudflare Pages: comando `npm run build`, salida `dist`. Los flujos usan únicamente `sessionStorage`, clave `lunario-demo-v1`.
 
-Límites de esta comprobación: no se probó Safari/iPhone físico ni se verificó un nuevo despliegue remoto. Las reglas comerciales pendientes del brief siguen pendientes y no bloquean esta demo. Chat 05 debe realizar su propia revisión visual y de presentación.
+Demo verificada en Cloudflare Pages: https://01672f25.proyecto--lunario.pages.dev/. Se comprobaron pedido como invitado hasta confirmación y elecciones de pago visuales, reserva con selección de mesa y coworking mensual hasta revisión, sin errores de ejecución ni recursos fallidos.
+
+Límites de esta comprobación: no se probó Safari/iPhone físico. Las reglas comerciales pendientes del brief siguen pendientes y no bloquean esta demo. Chat 05 debe realizar su propia revisión visual y de presentación.
 
 ## Checklist del Build Brief, con prevalencia del addendum
 
