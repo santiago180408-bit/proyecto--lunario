@@ -1,12 +1,34 @@
 # Lunario — Landing + entrada /ordenar
 
+## Addendum final de cierre — vigente
+
+Este apartado tiene precedencia sobre los criterios históricos de la fase Landing que aparecen debajo.
+
+- [x] Header de Landing únicamente con isotipo circular; hero con **Lunario Café** grande y frase **Buen café para grandes ideas.**, con énfasis editorial champán.
+- [x] Bloque de acceso reemplazado por un único link/cluster **Ir a ordenar → /ordenar**; las tres opciones se conservan dentro del gateway.
+- [x] Invitado y acceso no identificado: únicamente efectivo. Google/correo visual: efectivo, tarjeta y Apple Pay. Restricción aplicada a UI y store, incluyendo bloqueo antes de confirmar solicitud.
+- [x] Botón **Finalizar demostración** produce comprobante visual para los tres métodos; incluye método, referencia, snapshot del pedido/solicitud y total del pedido. La finalización persiste en sessionStorage y cambiar de método exige volver a finalizar.
+- [x] Reservas/coworking sin importe final autorizado muestran **Total por confirmar**; coworking conserva la tarifa publicada como referencia, sin inventar un total comercial.
+- [x] Ambos croquis conservan SVG, geometría y selección por tap/teclado, sin zoom/pinch/pan/reset/controles. `touch-action: pan-y` deja el scroll vertical al navegador.
+- [x] Cluster: borde champán suave, halo hover/focus, elevación, flecha y barrido de luz único al entrar.
+- [x] Gateway: iluminación diferenciada champán/coral, champán/marfil y champán/taupe; stagger 0/50/100 ms, hover de 3 px, pressed y microinteracciones de icono. Sin loops ni librería nueva.
+- [x] Reduced motion elimina desplazamientos, transformaciones y stagger.
+
+Checks: build/TypeScript y catálogo de 116 productos/487 configuraciones pasan. Diez capturas nuevas a 390/430/768/1024/1440, sin overflow. Siete combinaciones de comprobante en pedido (guest efectivo y los tres métodos para correo/Google), persistencia tras recarga, comprobante de reserva en efectivo y coworking en Apple Pay. Scroll táctil nativo comprobado con Chromium/CDP en ambos planos; pinch no escala el plano ni el viewport. Sin errores críticos ni recursos fallidos en las pruebas medidas. Safari/iPhone físico sigue sin comprobarse.
+
+Evidencias actuales: `output/playwright/addendum-landing-{390,430,768,1024,1440}.png`, `addendum-ordenar-{390,430,768,1024,1440}.png`, `addendum-receipt-*`, `addendum-static-tables.png`, `addendum-static-rooms.png`.
+
+Archivos de esta corrección: Landing/PublicHeader/OrderEntry y estilos públicos; Floorplan y reglas táctiles globales; payment/store y bloque de pago de DemoApp; nuevo `DemoReceipt.tsx`. No cambian catálogo, tarifas, geometría SVG, configuradores, contenido de FAQ ni las rutas principales.
+
+## Historial de validación de la fase Landing
+
 ## Entrega y alcance
 
 Implementación de los diez bloques del Build Brief recibido el 30/09/2026. Revisión de construcción completada en Chromium; lista para revisión independiente de Dirección/Chat 05. Esta aceptación técnica no sustituye su aprobación visual.
 
 Demo desplegada y verificada: https://3e9e296a.proyecto--lunario.pages.dev/. PR de esta fase: https://github.com/santiago180408-bit/proyecto--lunario/pull/3, con base en la entrega V1 del PR #2. No se fusionó a main.
 
-Solo cambian `/` y la nueva vista `/ordenar`, sus componentes, contenido, ilustraciones, fotografía derivada y SEO. `DemoApp.tsx`, CSS transaccional, stores, persistencia, datos de menú/coworking/pago, croquis y todas las rutas internas conservan exactamente sus archivos de la base `12a5583`.
+En esa fase únicamente cambiaron `/` y la nueva vista `/ordenar`, sus componentes, contenido, ilustraciones, fotografía derivada y SEO. Los archivos internos se conservaron respecto a `12a5583`; el addendum vigente autoriza ahora las modificaciones puntuales de pagos, comprobante y comportamiento de planos indicadas arriba.
 
 ## Referencias abiertas individualmente
 

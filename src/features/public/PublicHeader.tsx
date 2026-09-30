@@ -60,9 +60,9 @@ export function PublicHeader() {
       <div className={s.headerInner}>
         <Link href="/" className={s.brand}>
           <Image
-            src="/brand/lunario-logo-horizontal.png"
-            width={270}
-            height={80}
+            src="/brand/lunario-isotipo.svg"
+            width={64}
+            height={64}
             alt="Lunario Café"
             priority
           />

@@ -42,7 +42,8 @@ import {
   rates,
   rooms,
 } from "@/data/coworking";
-import { paymentMethods } from "@/data/payment";
+import { availablePaymentMethods, canUsePayment, paymentMethods } from "@/data/payment";
+import DemoReceipt from "./DemoReceipt";
 import {
   useDemoStore,
   type CartItem,
@@ -1732,6 +1733,7 @@ function RequestView() {
   const req = useDemoStore((s) => s.request);
   const advance = useDemoStore((s) => s.advanceRequest);
   const payment = useDemoStore((s) => s.selectPayment);
+  const completePayment = useDemoStore((s) => s.completePayment);
   const reset = useDemoStore((s) => s.resetFlow);
   const target =
     req?.kind === "order"
@@ -1801,19 +1803,21 @@ function RequestView() {
               <h2>Opciones de pago</h2>
               <p className="muted">Así podría continuar la experiencia después de la confirmación.</p>
               <div className="payment-options">
-                {paymentMethods.map(({ id, label }) => (
+                {availablePaymentMethods(req.accessMode).map(({ id, label }) => (
                   <button key={id} className={req.paymentSelection === id ? "selected" : ""}
                     aria-pressed={req.paymentSelection === id} onClick={() => payment(id)}>
                     {id === "cash" ? <Banknote /> : <CreditCard />}{label}
                   </button>
                 ))}
               </div>
-              {req.paymentSelection && <p className="payment-selected" role="status">
+              {req.paymentSelection && canUsePayment(req.accessMode, req.paymentSelection) && <p className="payment-selected" role="status">
                 <Check size={17} /> {paymentMethods.find((method) => method.id === req.paymentSelection)?.label} seleccionado para la demostración.
               </p>}
               <p className="info-note">Demostración visual. No se realizará ningún cobro.</p>
+              {req.paymentSelection && canUsePayment(req.accessMode, req.paymentSelection) && !req.paymentCompleted && <button className="btn dark" onClick={completePayment}>Finalizar demostración <Check size={17} /></button>}
             </div>
           )}
+          {req?.status === "confirmed" && req.paymentCompleted && <DemoReceipt request={req} />}
           <Link className="back-link" href="/">
             Volver al inicio
           </Link>

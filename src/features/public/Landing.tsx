@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { PublicHeader } from "./PublicHeader";
 import { BrandActionIcon, type ActionIcon } from "./BrandActionIcon";
-import { actions, business, faq } from "./content";
+import { business, faq } from "./content";
 import PublicMotion from "./PublicMotion";
 import s from "./public.module.css";
 
@@ -19,12 +19,10 @@ export function LandingHero() {
       />
       <div className={s.heroOverlay} aria-hidden="true" />
       <div className={`${s.container} ${s.heroContent}`}>
-        <h1>
-          Buen café para
-          <br />
-          <em>grandes ideas</em>
-        </h1>
-        <p>Café · Encuentros · Ideas</p>
+        <h1>Lunario Café</h1>
+        <p className={s.brandPhrase}>
+          Buen café para <strong>grandes ideas.</strong>
+        </p>
         <div className={s.heroActions}>
           <Link className={s.cta} href="/ordenar">
             Ir a ordenar <span aria-hidden="true">→</span>
@@ -75,46 +73,22 @@ export function ExperienceSection() {
         <h2>
           Tu experiencia <em>empieza aquí</em>
         </h2>
-        <div className={s.experienceGrid}>
-          {actions.map((action) => (
-            <ExperienceCard
-              key={action.intent}
-              title={action.title}
-              description={action.description}
-              icon={action.icon}
-              intent={action.intent}
-              href={`/ordenar?accion=${action.intent}`}
+        <Link href="/ordenar" className={s.orderCluster}>
+          <span className={s.clusterEmblem} aria-hidden="true">
+            <Image
+              src="/brand/lunario-isotipo.svg"
+              alt=""
+              width={74}
+              height={74}
             />
-          ))}
-        </div>
+          </span>
+          <span>Ir a ordenar</span>
+          <span className={s.clusterArrow} aria-hidden="true">
+            →
+          </span>
+        </Link>
       </div>
     </section>
-  );
-}
-function ExperienceCard({
-  title,
-  description,
-  icon,
-  href,
-  intent,
-}: {
-  title: string;
-  description?: string;
-  icon: ActionIcon;
-  href: string;
-  intent: string;
-}) {
-  return (
-    <Link href={href} className={s.experienceCard} data-intent={intent}>
-      <BrandActionIcon icon={icon} />
-      <div>
-        <h3>{title}</h3>
-        <p>{description}</p>
-      </div>
-      <span className={s.cardArrow} aria-hidden="true">
-        ›
-      </span>
-    </Link>
   );
 }
 export function OrbitalDecoration() {
