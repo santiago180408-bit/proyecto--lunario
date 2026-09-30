@@ -4,6 +4,8 @@
 
 Este apartado tiene precedencia sobre los criterios históricos de la fase Landing que aparecen debajo.
 
+Demo actual del addendum: https://274c1f22.proyecto--lunario.pages.dev/. PR #4: https://github.com/santiago180408-bit/proyecto--lunario/pull/4. Despliegue exitoso y comprobación pública de hero/cluster, gateway, efectivo exclusivo de invitado, comprobante y persistencia, y selección estática de ambos planos; sin errores ni recursos fallidos. No se fusionó a main.
+
 - [x] Header de Landing únicamente con isotipo circular; hero con **Lunario Café** grande y frase **Buen café para grandes ideas.**, con énfasis editorial champán.
 - [x] Bloque de acceso reemplazado por un único link/cluster **Ir a ordenar → /ordenar**; las tres opciones se conservan dentro del gateway.
 - [x] Invitado y acceso no identificado: únicamente efectivo. Google/correo visual: efectivo, tarjeta y Apple Pay. Restricción aplicada a UI y store, incluyendo bloqueo antes de confirmar solicitud.
