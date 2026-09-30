@@ -1573,12 +1573,12 @@
 .entryCard[data-intent="mesa"] {
   --action-glow: #f8f5ec25;
   --action-light: #f8f5ec;
-  --entry-delay: 90ms;
+  --entry-delay: 500ms;
 }
 .entryCard[data-intent="coworking"] {
   --action-glow: #8b7a6a50;
   --action-light: #f2c78b;
-  --entry-delay: 180ms;
+  --entry-delay: 1000ms;
 }
 .entryCard::before {
   content: "";
@@ -1615,10 +1615,10 @@
   pointer-events: none;
 }
 .entryPage[data-motion-ready] .entryCard[data-visible] .actionIcon img {
-  animation: actionArrival 420ms var(--ease) var(--entry-delay) both;
+  animation: actionArrival 650ms var(--ease) var(--entry-delay) both;
 }
 .entryPage[data-motion-ready] .entryCard[data-visible] .actionIcon::after {
-  animation: detailLight 420ms var(--ease) var(--entry-delay);
+  animation: detailLight 650ms var(--ease) var(--entry-delay);
 }
 .entryPage[data-motion-ready] .entryCard[data-intent="mesa"][data-visible] .actionIcon img {
   animation-name: tableArrival;

@@ -2,6 +2,8 @@
 
 ## Ajuste de logo, entrada y bebidas — 30/09/2026
 
+Corrección posterior solicitada: entrada más pausada, duración de iconos/brillo 650 ms y delays 0/500/1000 ms. Build y eventos reales comprobados a 390/1440: Pedir → mesa → coworking, aproximadamente 500 ms entre inicios; reduced motion sin animaciones. Estos tiempos sustituyen los originales indicados debajo.
+
 Vista previa comprobada: https://60065d34.proyecto--lunario.pages.dev/. PR #5: https://github.com/santiago180408-bit/proyecto--lunario/pull/5. Cloudflare completó el despliegue; logo, animaciones, apartados de bebidas y Matcha con leche comprobados públicamente, sin recursos fallidos ni errores de ejecución. No fusionado a main.
 
 - [x] Hero con el logo horizontal completo del paquete aprobado, sin reconstrucción; H1 accesible y header con isotipo.
