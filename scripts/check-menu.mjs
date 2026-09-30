@@ -55,17 +55,17 @@ for (const p of products) {
   }
 }
 const enchiladas = products.find((p) => p.id === "enchiladas");
-assert.deepEqual(
-  Array.from(
-    enchiladas.optionGroups.find((g) => g.label === "Salsa").options,
-    (o) => o.label,
-  ),
-  ["Salsa verde", "Salsa roja", "Salsa Lunario (habanero)"],
-);
+for (const product of products) {
+  if (["chilaquiles", "enchiladas", "alitas", "boneless"].includes(product.id))
+    assert(!product.optionGroups.some((group) => ["Salsa", "Proteína"].includes(group.label)), `${product.id}: source-pending choice exposed`);
+  if (product.id.startsWith("crepa-dulce-") || product.id.startsWith("waffle-"))
+    assert(!product.optionGroups.some((group) => group.label === "Base"), `${product.id}: source-pending base exposed`);
+}
+const latte = products.find((product) => product.id === "latte");
 assert.equal(
-  unitPrice(enchiladas, { "enchiladas-protein": "enchiladas-protein-3" }),
-  117,
-  "A surcharge selected before presentation must include the base price",
+  unitPrice(latte, { "latte-size": "latte-size-1", "latte-milk": "latte-milk-2" }),
+  74,
+  "Published large latte ($59) plus almond milk ($15)",
 );
 assert(
   !products
@@ -85,5 +85,5 @@ assert(
     .some((g) => g.label === "Bebida del paquete"),
 );
 console.log(
-  `PASS: ${products.length} products, ${configurations} configurations, prices, option IDs, categories and Enchiladas salsa.`,
+  `PASS: ${products.length} products, ${configurations} configurations, prices, option IDs, categories and pending choices excluded.`,
 );

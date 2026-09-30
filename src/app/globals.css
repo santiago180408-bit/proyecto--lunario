@@ -802,7 +802,7 @@ select:focus-visible,
   stroke: transparent;
   stroke-width: 9;
   cursor: pointer;
-  touch-action: pan-y;
+  touch-action: none;
 }
 .plan-hotspot:hover {
   stroke: rgba(181, 122, 53, 0.65);
@@ -3108,3 +3108,39 @@ html {
     transform: none !important;
   }
 }
+
+/* Approved V1: solid functional surfaces, selective glass and quiet depth. */
+:root {
+  --warm: #f3e9da;
+  --lavender: #eee9df;
+  --sage: #e9e5dc;
+  --mist: #ede8df;
+  --soft-shadow: 2px 2px 8px #44331f0a, -1px -1px 5px #ffffff9a;
+  --pressed-shadow: inset 2px 2px 5px #54412c12, inset -2px -2px 5px #ffffffa3;
+}
+.product-card, .action-card, .choice-card, .rate-card, .form-panel,
+.review-card, .selection-panel, .review-side, .form-aside, .plan-shell, .menu-preview {
+  box-shadow: none;
+  border-color: var(--line);
+}
+.desktop-logo img { width: 185px; height: 52px; object-fit: contain; }
+.mobile-logo img { width: 42px; height: 42px; }
+.plan-stage { touch-action: none; }
+.plan-tools {
+  display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+  margin-bottom: 10px; padding: 4px; border: 1px solid var(--line);
+  border-radius: 14px; background: #f8f5ecce; backdrop-filter: blur(8px);
+}
+.plan-tools .icon-btn { min-width: 44px; min-height: 44px; color: var(--coffee); }
+.plan-tools output { min-width: 42px; font-size: .8rem; text-align: center; }
+.plan-scaled { transform-origin: center; user-select: none; }
+.plan-hit-area { fill: transparent; stroke: none; }
+.plan-outline { pointer-events: none; }
+.plan-hotspot.read-only { pointer-events: none; cursor: default; }
+.plan-hotspot:focus-visible { outline: none; }
+.table-options { display: block; margin: 16px 0 0; }
+.table-options summary { min-height: 44px; align-content: center; cursor: pointer; }
+.table-options > div { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.table-options button { min-height: 44px; padding: 10px; text-align: left; border: 1px solid var(--line); background: var(--raised); border-radius: 12px; }
+.table-options button.selected { border-color: #a8763a; background: #fff4e3; }
+@media (max-width: 430px) { .table-options > div { grid-template-columns: 1fr; } }

@@ -18,7 +18,6 @@ import {
   Coffee,
   CalendarDays,
   Laptop,
-  Search,
   Utensils,
   PackageCheck,
   Pencil,
@@ -39,28 +38,17 @@ import {
   type Product,
 } from "@/data/menu";
 import {
-  coworkingQuote,
-  hourlyCoworkRate,
   periods,
   rates,
   rooms,
-  type Period,
 } from "@/data/coworking";
-import { localDateKey } from "@/data/order";
-import {
-  availablePaymentMethods,
-  canPayRequest,
-  type PaymentMethod,
-} from "@/data/payment";
+import { paymentMethods } from "@/data/payment";
 import {
   useDemoStore,
   type CartItem,
-  type ReceiptSummary,
-  type CoworkDraft,
-  type DemoRequest,
   type RequestKind,
 } from "@/store/demo";
-import Receipt from "@/components/Receipt";
+import Floorplan from "@/features/floorplans/Floorplan";
 
 const productById = (id: string) => products.find((p) => p.id === id);
 const selectedLabels = (p: Product, selections: Record<string, string>) =>
@@ -106,14 +94,10 @@ function StepHeader({
     : path.startsWith("/coworking")
       ? ["Espacio", "Tarifa y fecha", "Revisión"]
       : path.startsWith("/pedido")
-        ? path === "/pedido/recoger-hora"
-          ? ["Modalidad", "Recogida", "Tu pedido", "Revisión"]
-          : ["Modalidad", "Tu pedido", "Revisión"]
+        ? ["Modalidad", "Tu pedido", "Revisión"]
         : [];
   const current = path.endsWith("revision")
     ? 2
-    : path === "/pedido/recoger-hora"
-      ? 1
     : path.endsWith("mesa") || path.endsWith("configurar")
       ? 1
       : 0;
@@ -218,12 +202,8 @@ function Dialog({
 }
 function Header() {
   const path = usePathname();
-  const router = useRouter();
   const cart = useDemoStore((s) => s.cart);
   const orderMode = useDemoStore((s) => s.orderMode);
-  const pickupDate = useDemoStore((s) => s.pickupDate);
-  const pickupTime = useDemoStore((s) => s.pickupTime);
-  const refreshPickupDate = useDemoStore((s) => s.refreshPickupDate);
   const count = cart.reduce((n, item) => n + item.quantity, 0);
   const showCart =
     count > 0 &&
@@ -251,7 +231,6 @@ function Header() {
     document.body.classList.toggle("has-cart", showCart);
     return () => document.body.classList.remove("has-cart");
   }, [showCart]);
-  useEffect(() => refreshPickupDate(), [refreshPickupDate]);
   const [menu, setMenu] = useState(false);
   const [pastHero, setPastHero] = useState(false);
   useEffect(() => {
@@ -276,13 +255,12 @@ function Header() {
             aria-label="Lunario Café, inicio"
           >
             <Image
-              src="/brand/lunario-isotipo-marfil.svg"
-              alt=""
-              width={42}
-              height={42}
+              src="/brand/lunario-logo-horizontal.png"
+              alt="Lunario Café"
+              width={185}
+              height={52}
               priority
             />
-            <span>Lunario</span>
           </Link>
           <Link
             href="/"
@@ -295,7 +273,6 @@ function Header() {
               width={42}
               height={42}
             />
-            <span>Lunario</span>
           </Link>
           <nav className="desktop-nav" aria-label="Principal">
             {count > 0 && (
@@ -308,17 +285,14 @@ function Header() {
                 <span className="cart-badge">{count}</span>
               </button>
             )}
-            <Link href="/#descubre">Descubre</Link>
-            <Link href="/#modalidad">Tu pedido</Link>
-            <Link href="/#coworking">Coworking</Link>
-            <Link className="header-order" href="/ordenar">
-              Ir a ordenar <ArrowRight size={15} />
+            <Link href="/menu">Menú</Link>
+            <Link href="/reservar">Reservar</Link>
+            <Link href="/coworking">Coworking</Link>
+            <Link className="header-order" href="/pedido">
+              Pedir <ArrowRight size={15} />
             </Link>
           </nav>
           <div className="mobile-actions">
-            <Link className="mobile-order" href="/ordenar">
-              Ordenar
-            </Link>
             {cart.length > 0 && (
               <button
                 aria-label={`Abrir carrito, ${count} ${count === 1 ? "producto" : "productos"}`}
@@ -355,16 +329,10 @@ function Header() {
           inert={!menu}
         >
           <Link href="/">Inicio</Link>
-          <Link href="/#descubre" onClick={() => setMenu(false)}>
-            Descubre
-          </Link>
-          <Link href="/#modalidad" onClick={() => setMenu(false)}>
-            Tu pedido
-          </Link>
-          <Link href="/#coworking" onClick={() => setMenu(false)}>
-            Coworking
-          </Link>
-          <Link href="/ordenar">Ir a ordenar</Link>
+          <Link href="/menu">Menú</Link>
+          <Link href="/reservar">Reservar</Link>
+          <Link href="/coworking">Coworking</Link>
+          <Link href="/pedido">Pedir</Link>
         </nav>
       </header>
       {showCart && !cartOpen && !menu && (
@@ -384,13 +352,7 @@ function Header() {
               {orderMode === "pickup" ? "Para recoger" : "Tu pedido"}
             </small>
             <strong>{formatMoney(cartTotal(cart))}</strong>
-            {orderMode === "pickup" && pickupTime && (
-              <small className="pickup-cart-context">
-                {pickupDate === localDateKey()
-                  ? `Hoy · ${pickupTime}`
-                  : "Hora por elegir"}
-              </small>
-            )}
+
           </span>
           <span className="cart-cta">
             {isOrderReview ? "Enviar solicitud" : "Ver pedido"}{" "}
@@ -416,89 +378,6 @@ function Header() {
     </>
   );
 }
-function PickupTimeDialog({ onClose }: { onClose: () => void }) {
-  const pickupTime = useDemoStore((s) => s.pickupTime);
-  const setPickupTime = useDemoStore((s) => s.setPickupTime);
-  const [time, setTime] = useState(pickupTime);
-  const [error, setError] = useState(false);
-  return (
-    <Dialog
-      title="Cambiar hora de recogida"
-      onClose={onClose}
-      className="pickup-time-dialog"
-    >
-      <p className="eyebrow">PARA RECOGER · HOY</p>
-      <h2>¿A qué hora pasarás?</h2>
-      <label>
-        <span className="field-label">
-          <Clock size={16} /> Hora preferida de recogida
-        </span>
-        <input
-          autoFocus
-          type="time"
-          value={time}
-          aria-invalid={error}
-          aria-describedby={error ? "pickup-time-error" : "pickup-time-note"}
-          onChange={(event) => {
-            setTime(event.target.value);
-            setError(false);
-          }}
-        />
-      </label>
-      {error && (
-        <p id="pickup-time-error" className="field-error" role="alert">
-          Selecciona una hora para recoger.
-        </p>
-      )}
-      <p id="pickup-time-note" className="muted pickup-time-note">
-        Es una hora preferida para hoy, no una confirmación de disponibilidad.
-      </p>
-      <button
-        className="btn dark full"
-        onClick={() => {
-          if (!time) {
-            setError(true);
-            return;
-          }
-          setPickupTime(time);
-          onClose();
-        }}
-      >
-        Guardar hora <Check size={17} />
-      </button>
-    </Dialog>
-  );
-}
-function PickupContext() {
-  const mode = useDemoStore((s) => s.orderMode);
-  const pickupDate = useDemoStore((s) => s.pickupDate);
-  const pickupTime = useDemoStore((s) => s.pickupTime);
-  const [editing, setEditing] = useState(false);
-  if (mode !== "pickup") return null;
-  return (
-    <>
-      <div className="pickup-context">
-        <span className="pickup-context-icon"><PackageCheck size={17} /></span>
-        <span className="pickup-context-copy">
-          <strong>Para recoger</strong>
-          <small>
-            {pickupDate === localDateKey() && pickupTime
-              ? `Hoy · ${pickupTime}`
-              : "Recoger hoy · hora por elegir"}
-          </small>
-        </span>
-        <button
-          type="button"
-          className="pickup-context-edit"
-          onClick={() => setEditing(true)}
-        >
-          Cambiar
-        </button>
-      </div>
-      {editing && <PickupTimeDialog onClose={() => setEditing(false)} />}
-    </>
-  );
-}
 function Footer() {
   return (
     <footer className="site-footer">
@@ -512,10 +391,10 @@ function Footer() {
           />
         </Link>
         <nav aria-label="Navegación de pie de página">
-          <Link href="/#descubre">Descubre</Link>
-          <Link href="/#modalidad">Tu pedido</Link>
-          <Link href="/#coworking">Coworking</Link>
-          <Link href="/ordenar">Ir a ordenar</Link>
+          <Link href="/menu">Menú</Link>
+          <Link href="/pedido">Pedir</Link>
+          <Link href="/reservar">Reservar</Link>
+          <Link href="/coworking">Coworking</Link>
         </nav>
         <p>
           Demo visual de Lunario Café.
@@ -527,285 +406,113 @@ function Footer() {
   );
 }
 function Home() {
-  const [photo, setPhoto] = useState(0);
-  const gallery = [
-    "/media/coworking-1.jpg",
-    "/media/coworking-2.jpg",
-    "/media/coworking-3.jpg",
-  ];
-  const touch = useRef<number | null>(null);
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const items = document.querySelectorAll<HTMLElement>(".landing-reveal");
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("revealed");
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.12 },
-    );
-    items.forEach((item) => observer.observe(item));
-    return () => observer.disconnect();
-  }, []);
   return (
     <main>
       <section className="hero">
         <div
           className="hero-photo"
           role="img"
-          aria-label="Fotografía de café de Lunario"
+          aria-label="Café fotografiado en el menú oficial de Lunario"
         />
         <div className="hero-shade" />
         <div className="wrap hero-content">
-          <p className="eyebrow light">LUNARIO CAFÉ</p>
+          <p className="eyebrow light">CAFÉ · ENCUENTROS · IDEAS</p>
           <h1>
-            Buen café para <em>grandes ideas</em>
+            Buen café para
+            <br />
+            <em>grandes ideas.</em>
           </h1>
-          <p>Café, comida y espacios para trabajar a tu ritmo.</p>
+          <p>Explora la experiencia de Lunario Café.</p>
           <div className="hero-actions">
-            <Link className="btn champagne" href="/ordenar">
-              Explorar Lunario <ArrowRight size={17} />
+            <Link className="btn champagne" href="/pedido">
+              Pedir <ArrowRight size={17} />
+            </Link>
+            <Link className="btn outline-light" href="/reservar">
+              Reservar mesa
+            </Link>
+          </div>
+        </div>
+        <div className="hero-side">LUNARIO CAFÉ / DEMO V1</div>
+      </section>
+      <section className="wrap home-actions">
+        <div className="section-intro">
+          <p className="eyebrow">ELIGE TU MOMENTO</p>
+          <h2>¿Qué te trae hoy?</h2>
+        </div>
+        <div className="action-grid">
+          <Link href="/pedido" className="action-card">
+            <span>01</span>
+            <h3>Pedir</h3>
+            <p>Para disfrutar aquí o recoger.</p>
+            <ArrowRight />
+          </Link>
+          <Link href="/reservar" className="action-card">
+            <span>02</span>
+            <h3>Reservar mesa</h3>
+            <p>Elige tu fecha y una mesa en el plano.</p>
+            <ArrowRight />
+          </Link>
+          <Link href="/coworking" className="action-card">
+            <span>03</span>
+            <h3>Coworking</h3>
+            <p>Encuentra un espacio para tus ideas.</p>
+            <ArrowRight />
+          </Link>
+        </div>
+      </section>
+      <section className="home-menu">
+        <div className="wrap split-section">
+          <div>
+            <p className="eyebrow">LA CARTA</p>
+            <h2>
+              Tu pausa favorita
+              <br />
+              empieza aquí.
+            </h2>
+            <p className="muted">
+              Cafés, desayunos y algo para cada antojo. Explora los productos y
+              precios publicados por Lunario.
+            </p>
+            <Link className="btn dark" href="/menu">
+              Ver menú <ArrowRight size={17} />
+            </Link>
+          </div>
+          <div className="menu-preview">
+            {["latte", "chilaquiles", "crepa-dulce-8"].map((id) => {
+              const product = productById(id)!;
+              return <div key={id}>
+                <small>{categories.find((category) => category.id === product.categoryId)?.name}</small>
+                <strong>{product.name}</strong>
+                <span>{product.pricingType === "variant" ? "Desde " : ""}{formatMoney(startingPrice(product))}</span>
+              </div>;
+            })}
+          </div>
+        </div>
+      </section>
+      <section className="cowork-band">
+        <div className="wrap split-section">
+          <div
+            className="cowork-band-photo"
+            role="img"
+            aria-label="Espacio de coworking fotografiado por Lunario"
+          />
+          <div>
+            <p className="eyebrow light">COFFEE TIME</p>
+            <h2>
+              Espacio para
+              <br />
+              hacer que pase.
+            </h2>
+            <p>
+              Cuatro cuartos para trabajar, estudiar o reunirte. Explora el
+              plano y las tarifas publicadas.
+            </p>
+            <Link className="btn champagne" href="/coworking">
+              Ver coworking <ArrowRight size={17} />
             </Link>
           </div>
         </div>
       </section>
-      <section
-        className="brand-pause landing-reveal"
-        aria-label="Café, encuentros e ideas"
-      >
-        <p>
-          Café <span>·</span> Encuentros <span>·</span> Ideas
-        </p>
-      </section>
-      <section className="discover wrap" id="descubre">
-        <div className="section-intro">
-          <p className="eyebrow">DESCUBRE LUNARIO</p>
-          <h2>Un lugar, varias formas de disfrutarlo.</h2>
-        </div>
-        <div className="discover-grid">
-          <article className="discover-card discover-cafe landing-reveal">
-            <div className="discover-image">
-              <Image
-                src="/media/cafe-hero.jpg"
-                alt="Café de Lunario"
-                fill
-                sizes="(max-width: 760px) 100vw, 40vw"
-              />
-            </div>
-            <div className="discover-copy">
-              <p className="eyebrow">CAFÉ Y COMIDA</p>
-              <h3>Algo para cada momento.</h3>
-              <p>{categories.map((category) => category.name).join(" · ")}</p>
-              <Link className="text-action" href="/ordenar">
-                Conocer opciones <ArrowRight size={17} />
-              </Link>
-            </div>
-          </article>
-          <article className="discover-card landing-reveal">
-            <div className="discover-image plan-preview">
-              <Image
-                src="/floorplans/planta-baja.png"
-                alt="Croquis aprobado de la cafetería"
-                fill
-                sizes="(max-width: 760px) 100vw, 28vw"
-              />
-            </div>
-            <div className="discover-copy">
-              <p className="eyebrow">RESERVA TU MESA</p>
-              <h3>Tu lugar en Lunario.</h3>
-              <p>Consulta el plano de mesas al continuar.</p>
-              <Link className="text-action" href="/ordenar">
-                Conocer opciones <ArrowRight size={17} />
-              </Link>
-            </div>
-          </article>
-          <article className="discover-card landing-reveal">
-            <div className="discover-image">
-              <Image
-                src="/media/coworking-1.jpg"
-                alt="Espacio de coworking de Lunario"
-                fill
-                sizes="(max-width: 760px) 100vw, 28vw"
-              />
-            </div>
-            <div className="discover-copy">
-              <p className="eyebrow">COWORKING</p>
-              <h3>Espacio para tus ideas.</h3>
-              <p>Conoce el plano y prepara tu solicitud.</p>
-              <Link className="text-action" href="/ordenar">
-                Conocer opciones <ArrowRight size={17} />
-              </Link>
-            </div>
-          </article>
-        </div>
-      </section>
-      <section className="order-mode landing-reveal" id="modalidad">
-        <div className="wrap order-mode-inner">
-          <div>
-            <p className="eyebrow light">A TU MANERA</p>
-            <h2>Para quedarte o para llevar.</h2>
-            <p>
-              Consume en mesa o recoge tu pedido. Elige la modalidad al
-              continuar.
-            </p>
-          </div>
-          <Link className="btn champagne" href="/ordenar">
-            Ir a ordenar <ArrowRight size={17} />
-          </Link>
-        </div>
-      </section>
-      <section className="cowork-gallery wrap landing-reveal" id="coworking">
-        <div className="gallery-heading">
-          <div>
-            <p className="eyebrow">ESPACIOS DE COWORKING</p>
-            <h2>Ideas que encuentran su lugar.</h2>
-          </div>
-          <Link className="btn dark" href="/ordenar">
-            Conocer opciones <ArrowRight size={17} />
-          </Link>
-        </div>
-        <div
-          className="gallery-frame"
-          role="region"
-          aria-roledescription="carrusel"
-          aria-label="Fotografías de coworking"
-          tabIndex={0}
-          onKeyDown={(event) => {
-            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-              event.preventDefault();
-              setPhoto(
-                (current) =>
-                  (current +
-                    (event.key === "ArrowRight" ? 1 : gallery.length - 1)) %
-                  gallery.length,
-              );
-            }
-          }}
-          onTouchStart={(event) => {
-            touch.current = event.touches[0].clientX;
-          }}
-          onTouchCancel={() => {
-            touch.current = null;
-          }}
-          onTouchEnd={(event) => {
-            if (touch.current === null) return;
-            const delta = event.changedTouches[0].clientX - touch.current;
-            if (Math.abs(delta) > 40)
-              setPhoto(
-                (current) =>
-                  (current + (delta < 0 ? 1 : gallery.length - 1)) %
-                  gallery.length,
-              );
-            touch.current = null;
-          }}
-        >
-          <Image
-            src={gallery[photo]}
-            alt={`Fotografía ${photo + 1} de espacios de coworking de Lunario`}
-            fill
-            sizes="(max-width: 760px) 100vw, 80vw"
-          />
-          <div className="gallery-controls">
-            <button
-              type="button"
-              onClick={() =>
-                setPhoto(
-                  (current) => (current + gallery.length - 1) % gallery.length,
-                )
-              }
-              aria-label="Fotografía anterior"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <span aria-live="polite" aria-atomic="true">
-              {photo + 1} / {gallery.length}
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                setPhoto((current) => (current + 1) % gallery.length)
-              }
-              aria-label="Fotografía siguiente"
-            >
-              <ArrowRight size={20} />
-            </button>
-          </div>
-        </div>
-      </section>
-      <section className="landing-close landing-reveal">
-        <div className="wrap">
-          <p className="eyebrow light">LUNARIO CAFÉ</p>
-          <h2>Tu próximo momento empieza aquí.</h2>
-          <Link className="btn champagne" href="/ordenar">
-            Ir a ordenar <ArrowRight size={17} />
-          </Link>
-        </div>
-      </section>
-    </main>
-  );
-}
-function OrderEntry() {
-  return (
-    <main className="order-entry">
-      <div className="wrap">
-        <p className="eyebrow">LUNARIO CAFÉ</p>
-        <h1>¿Qué te gustaría hacer?</h1>
-        <p className="lead muted">Elige cómo quieres vivir Lunario.</p>
-        <div className="entry-grid">
-          <Link href="/pedido" className="entry-card">
-            <div className="entry-image">
-              <Image
-                src="/media/cafe-hero.jpg"
-                alt="Café de Lunario"
-                fill
-                sizes="(max-width: 760px) 100vw, 33vw"
-              />
-            </div>
-            <div className="entry-copy">
-              <span>01</span>
-              <h2>Ordenar</h2>
-              <p>Para disfrutar en mesa o recoger.</p>
-              <ArrowRight size={22} />
-            </div>
-          </Link>
-          <Link href="/reservar" className="entry-card">
-            <div className="entry-image entry-plan">
-              <Image
-                src="/floorplans/planta-baja.png"
-                alt="Croquis de mesas de la cafetería"
-                fill
-                sizes="(max-width: 760px) 100vw, 33vw"
-              />
-            </div>
-            <div className="entry-copy">
-              <span>02</span>
-              <h2>Reservar mesa</h2>
-              <p>Consulta el plano y solicita tu mesa.</p>
-              <ArrowRight size={22} />
-            </div>
-          </Link>
-          <Link href="/coworking" className="entry-card">
-            <div className="entry-image">
-              <Image
-                src="/media/coworking-1.jpg"
-                alt="Espacio de coworking de Lunario"
-                fill
-                sizes="(max-width: 760px) 100vw, 33vw"
-              />
-            </div>
-            <div className="entry-copy">
-              <span>03</span>
-              <h2>Reservar coworking</h2>
-              <p>Explora los espacios para trabajar.</p>
-              <ArrowRight size={22} />
-            </div>
-          </Link>
-        </div>
-      </div>
     </main>
   );
 }
@@ -867,48 +574,18 @@ function ProductCard({
 }
 function MenuView() {
   const mode = useDemoStore((s) => s.orderMode);
-  const pickupDate = useDemoStore((s) => s.pickupDate);
-  const pickupTime = useDemoStore((s) => s.pickupTime);
   const cart = useDemoStore((s) => s.cart);
   const [active, setActive] = useState<string>("cafe");
-  const [query, setQuery] = useState("");
-  const normalize = (v: string) =>
-    v
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
-  const visible = products.filter(
-    (p) =>
-      p.enabledInDemo &&
-      (query.trim()
-        ? normalize(
-            `${p.name} ${p.description} ${categories.find((c) => c.id === p.categoryId)?.name}`,
-          ).includes(normalize(query.trim()))
-        : p.categoryId === active),
-  );
+  const visible = products.filter((p) => p.enabledInDemo && p.categoryId === active);
   const [open, setOpen] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   return (
-    <Guard valid={mode !== "pickup" || (pickupDate === localDateKey() && !!pickupTime)} to="/pedido/recoger-hora">
-    <>
+    <main>
       <StepHeader
         eyebrow="MENÚ LUNARIO"
         title="La carta"
         description="Sabores para quedarte un poco más."
       />
-      {mode === "pickup" && <div className="wrap"><PickupContext /></div>}
-      <div className="wrap search-wrap">
-        <label className="menu-search">
-          <Search size={20} />
-          <input
-            type="search"
-            placeholder="Buscar en la carta"
-            aria-label="Buscar en la carta"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
-      </div>
       <div className="category-strip">
         <nav className="wrap category-inner" aria-label="Categorías del menú">
           {categories.map((c) => (
@@ -916,29 +593,26 @@ function MenuView() {
               key={c.id}
               onClick={(e) => {
                 setActive(c.id);
-                setQuery("");
                 e.currentTarget.scrollIntoView({
                   block: "nearest",
                   inline: "center",
-                  behavior: "smooth",
+                  behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
                 });
               }}
-              className={!query && active === c.id ? "active" : ""}
-              aria-current={!query && active === c.id ? "true" : undefined}
+              className={active === c.id ? "active" : ""}
+              aria-current={active === c.id ? "true" : undefined}
             >
               {c.name}
             </button>
           ))}
         </nav>
       </div>
-      <main className="wrap menu-content">
+      <div className="wrap menu-content">
         <div className="menu-topline">
           <div>
-            <p className="eyebrow">
-              {query
-                ? `${visible.length} ${visible.length === 1 ? "resultado" : "resultados"}`
-                : categories.find((c) => c.id === active)?.name}
-            </p>
+            <h2 className="eyebrow">
+              {categories.find((c) => c.id === active)?.name}
+            </h2>
             <p className="muted">Precios en pesos mexicanos.</p>
           </div>
           {cart.length > 0 && (
@@ -949,7 +623,7 @@ function MenuView() {
         </div>
         {visible.length === 0 && (
           <p className="empty-state">
-            No encontramos productos. Prueba con otro nombre o categoría.
+            No encontramos productos. Elige otra categoría.
           </p>
         )}
         <div className="product-grid">
@@ -962,13 +636,12 @@ function MenuView() {
             />
           ))}
         </div>
-      </main>
+      </div>
       {open && (
         <ProductConfigurator product={open} onClose={() => setOpen(null)} />
       )}{" "}
       {cartOpen && <CartDialog onClose={() => setCartOpen(false)} />}
-    </>
-    </Guard>
+    </main>
   );
 }
 function QuantityStepper({
@@ -1046,7 +719,6 @@ function ProductConfigurator({
       <p className="eyebrow">LUNARIO CAFÉ</p>
       <h2>{product.name}</h2>
       {product.description && <p className="muted">{product.description}</p>}
-      {mode === "pickup" && <PickupContext />}
       <div className="config-options">
         {visibleGroups(product, selections).map((g) => (
           <fieldset key={g.id} data-group={g.id} aria-describedby={missingGroup === g.id ? `option-error-${g.id}` : undefined}>
@@ -1117,8 +789,6 @@ function CartDialog({
   const setQuantity = useDemoStore((s) => s.setQuantity);
   const remove = useDemoStore((s) => s.removeItem);
   const orderMode = useDemoStore((s) => s.orderMode);
-  const pickupDate = useDemoStore((s) => s.pickupDate);
-  const pickupTime = useDemoStore((s) => s.pickupTime);
   const router = useRouter();
   const [editing, setEditing] = useState<CartItem | null>(null);
   const editProduct = editing && productById(editing.productId);
@@ -1127,7 +797,6 @@ function CartDialog({
       <Dialog title="Carrito" onClose={onClose} className="cart-dialog">
         <p className="eyebrow">TU PEDIDO</p>
         <h2>Carrito</h2>
-        {orderMode === "pickup" && <PickupContext />}
         {cart.length === 0 ? (
           <div className="empty-state">
             <ShoppingBag size={32} />
@@ -1190,7 +859,7 @@ function CartDialog({
                 className="btn dark full"
                 onClick={() => {
                   onClose();
-                  router.push(!orderMode ? "/pedido" : orderMode === "pickup" && (pickupDate !== localDateKey() || !pickupTime) ? "/pedido/recoger-hora" : orderMode === "dineIn" && !useDemoStore.getState().orderTableId ? "/pedido/mesa" : "/pedido/revision");
+                  router.push(!orderMode ? "/pedido" : orderMode === "dineIn" && !useDemoStore.getState().orderTableId ? "/pedido/mesa" : "/pedido/revision");
                 }}
               >
                 Revisar pedido <ArrowRight size={16} />
@@ -1216,224 +885,6 @@ function CartDialog({
   );
 }
 
-const tables = [
-  {
-    id: "table-a",
-    x: 187,
-    y: 255,
-    w: 106,
-    h: 65,
-    label: "junto a la pared superior izquierda",
-  },
-  {
-    id: "table-b",
-    x: 187,
-    y: 354,
-    w: 106,
-    h: 63,
-    label: "en la zona superior izquierda",
-  },
-  {
-    id: "table-c",
-    x: 190,
-    y: 526,
-    w: 109,
-    h: 62,
-    label: "junto al pasillo, a la izquierda",
-  },
-  {
-    id: "table-d",
-    x: 194,
-    y: 589,
-    w: 104,
-    h: 65,
-    label: "junto a las escaleras",
-  },
-  {
-    id: "table-e",
-    x: 218,
-    y: 979,
-    w: 132,
-    h: 70,
-    label: "debajo de las escaleras",
-  },
-  {
-    id: "table-f",
-    x: 221,
-    y: 1104,
-    w: 123,
-    h: 77,
-    label: "en la zona central izquierda",
-  },
-  {
-    id: "table-g",
-    x: 191,
-    y: 1261,
-    w: 161,
-    h: 90,
-    label: "cerca de la entrada, a la izquierda",
-  },
-  {
-    id: "table-h",
-    x: 757,
-    y: 983,
-    w: 162,
-    h: 61,
-    label: "debajo de los baños",
-  },
-  {
-    id: "table-i",
-    x: 760,
-    y: 1088,
-    w: 154,
-    h: 100,
-    label: "en la zona central derecha",
-  },
-  {
-    id: "table-j",
-    x: 810,
-    y: 1265,
-    w: 165,
-    h: 80,
-    label: "cerca de la entrada, a la derecha",
-  },
-];
-const roomZones = [
-  { id: "room-01", x: 112, y: 193, w: 510, h: 340 },
-  { id: "room-02", x: 112, y: 537, w: 510, h: 357 },
-  { id: "room-03", x: 724, y: 753, w: 362, h: 364 },
-  { id: "room-04", x: 113, y: 1122, w: 973, h: 304 },
-];
-function Floorplan({
-  kind,
-  selected,
-  onSelect,
-}: {
-  kind: "table" | "room";
-  selected: string | null;
-  onSelect: (id: string) => void;
-}) {
-  const source =
-    kind === "table"
-      ? "/floorplans/planta-baja.png"
-      : "/floorplans/segundo-piso.png";
-  const zones = kind === "table" ? tables : roomZones;
-  const pointerStart = useRef(new Map<number, { x: number; y: number }>());
-  const suppressTap = useRef(false);
-  const clearSuppressedTap = () => {
-    window.setTimeout(() => {
-      suppressTap.current = false;
-    }, 0);
-  };
-  return (
-    <div className="plan-shell">
-      <div className="plan-stage">
-        <div className="plan-scaled">
-          <Image
-            src={source}
-            alt={
-              kind === "table"
-                ? "Plano digital de planta baja con mesas, pasillo, barra, cocina, baños, escaleras y entrada"
-                : "Plano digital de segundo piso con cuatro cuartos, entradas, baño y escaleras"
-            }
-            width={1200}
-            height={1600}
-            unoptimized
-          />
-          <svg
-            className="plan-overlay"
-            viewBox="0 0 1200 1600"
-            aria-label={
-              kind === "table"
-                ? "Seleccionar mesa en el plano"
-                : "Seleccionar cuarto en el plano"
-            }
-          >
-            {zones.map((z) => (
-              <rect
-                key={z.id}
-                x={z.x}
-                y={z.y}
-                width={z.w}
-                height={z.h}
-                rx="8"
-                tabIndex={0}
-                role="button"
-                aria-label={
-                  kind === "table"
-                    ? `Seleccionar mesa ${"label" in z ? z.label : ""}`
-                    : `Seleccionar ${rooms.find((r) => r.id === z.id)?.name}`
-                }
-                aria-pressed={selected === z.id}
-                className={`plan-hotspot ${selected === z.id ? "selected" : ""}`}
-                onPointerDown={(e) =>
-                  pointerStart.current.set(e.pointerId, {
-                    x: e.clientX,
-                    y: e.clientY,
-                  })
-                }
-                onPointerMove={(e) => {
-                  const start = pointerStart.current.get(e.pointerId);
-                  if (
-                    e.pointerType === "touch" &&
-                    start &&
-                    Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10
-                  )
-                    suppressTap.current = true;
-                }}
-                onPointerUp={(e) => {
-                  pointerStart.current.delete(e.pointerId);
-                  clearSuppressedTap();
-                }}
-                onPointerCancel={(e) => {
-                  pointerStart.current.delete(e.pointerId);
-                  clearSuppressedTap();
-                }}
-                onClick={(e) => {
-                  if (suppressTap.current) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    suppressTap.current = false;
-                    return;
-                  }
-                  onSelect(z.id);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onSelect(z.id);
-                  }
-                }}
-              />
-            ))}
-          </svg>
-        </div>
-      </div>
-      <p className="plan-caption">
-        Plano orientativo sin escala. Selecciona{" "}
-        {kind === "table" ? "una mesa" : "un cuarto"}; la selección se marca en
-        dorado.
-      </p>
-      {kind === "table" && (
-        <details className="table-options">
-          <summary className="eyebrow">Elegir mesa por ubicación</summary>
-          <div>
-            {tables.map((t) => (
-              <button
-                key={t.id}
-                aria-pressed={selected === t.id}
-                className={selected === t.id ? "selected" : ""}
-                onClick={() => onSelect(t.id)}
-              >
-                Mesa {t.label}
-              </button>
-            ))}
-          </div>
-        </details>
-      )}
-    </div>
-  );
-}
 function Guard({
   valid,
   to,
@@ -1456,15 +907,13 @@ function Guard({
 function ChoicePage() {
   const router = useRouter();
   const set = useDemoStore((s) => s.setOrderMode);
-  const pickupDate = useDemoStore((s) => s.pickupDate);
-  const pickupTime = useDemoStore((s) => s.pickupTime);
   return (
     <main>
       <StepHeader
         eyebrow="PEDIDO"
         title="¿Cómo lo prefieres?"
         description="Elige cómo disfrutar tu pedido."
-        back="/ordenar"
+        back="/"
       />
       <div className="wrap choice-grid">
         <button
@@ -1486,92 +935,21 @@ function ChoicePage() {
         <button
           className="choice-card"
           onClick={() => {
-            const hasSameDayTime =
-              pickupDate === localDateKey() && !!pickupTime;
             set("pickup");
-            router.push(hasSameDayTime ? "/menu" : "/pedido/recoger-hora");
+            router.push("/menu");
           }}
         >
           <span className="icon-holder sage">
             <PackageCheck />
           </span>
           <h2>Para recoger</h2>
-          <p>Recoge hoy. Elige la hora preferida y prepara tu pedido.</p>
+          <p>Explora el menú y prepara tu pedido.</p>
           <span className="choice-arrow">
             <ArrowRight />
           </span>
         </button>
       </div>
     </main>
-  );
-}
-function PickupTimePage() {
-  const mode = useDemoStore((s) => s.orderMode);
-  const pickupTime = useDemoStore((s) => s.pickupTime);
-  const setPickupTime = useDemoStore((s) => s.setPickupTime);
-  const router = useRouter();
-  const [error, setError] = useState(false);
-  return (
-    <Guard valid={mode === "pickup"} to="/pedido">
-      <main>
-        <StepHeader
-          eyebrow="PEDIDO / PARA RECOGER"
-          title="Recoger hoy"
-          description="Indica a qué hora prefieres pasar por tu pedido. La hora no confirma disponibilidad."
-          back="/pedido"
-        />
-        <div className="wrap form-layout pickup-layout">
-          <div className="form-panel pickup-form">
-            <p className="eyebrow">¿A qué hora pasarás?</p>
-            <label>
-              <span className="field-label">
-                <Clock size={16} /> Hora preferida de recogida
-              </span>
-              <input
-                type="time"
-                value={pickupTime}
-                aria-invalid={error}
-                aria-describedby={error ? "pickup-time-inline-error" : "pickup-time-inline-note"}
-                onChange={(event) => {
-                  setPickupTime(event.target.value);
-                  setError(false);
-                }}
-              />
-              {error && (
-                <span id="pickup-time-inline-error" className="field-error" role="alert">
-                  Selecciona una hora para recoger.
-                </span>
-              )}
-            </label>
-            <p id="pickup-time-inline-note" className="muted pickup-time-note">
-              Preferencia para hoy. No representa un horario disponible ni una
-              confirmación del pedido.
-            </p>
-            <button
-              className="btn dark full"
-              onClick={() => {
-                if (!pickupTime) {
-                  setError(true);
-                  return;
-                }
-                setPickupTime(pickupTime);
-                router.push("/menu");
-              }}
-            >
-              Continuar al menú <ArrowRight size={17} />
-            </button>
-          </div>
-          <aside className="form-aside">
-            <span>HOY · {pickupTime || "HORA PENDIENTE"}</span>
-            <h2>Tu pedido, a tu ritmo.</h2>
-            <p>
-              No usamos intervalos ni cupos simulados. El equipo confirmaría la
-              solicitud posteriormente.
-            </p>
-          </aside>
-        </div>
-      </main>
-    </Guard>
   );
 }
 function OrderTable() {
@@ -1637,7 +1015,7 @@ function ReservationStart() {
         eyebrow="RESERVAR MESA"
         title="Tu próxima visita"
         description="Indica cuándo deseas venir. La hora es una preferencia para la solicitud, no una disponibilidad confirmada."
-        back="/ordenar"
+        back="/"
       />
       <div className="wrap form-layout">
         <div className="form-panel">
@@ -1871,18 +1249,13 @@ function OrderReview() {
   const cart = useDemoStore((s) => s.cart);
   const mode = useDemoStore((s) => s.orderMode);
   const table = useDemoStore((s) => s.orderTableId);
-  const pickupDate = useDemoStore((s) => s.pickupDate);
-  const pickupTime = useDemoStore((s) => s.pickupTime);
-  const [editingPickup, setEditingPickup] = useState(false);
   return (
     <Guard
-      valid={!!(mode && cart.length && (mode === "pickup" ? pickupDate === localDateKey() && pickupTime : table))}
+      valid={!!(mode && cart.length && (mode === "pickup" || table))}
       to={
         !cart.length
           ? "/menu"
-            : mode === "pickup" && (pickupDate !== localDateKey() || !pickupTime)
-              ? "/pedido/recoger-hora"
-              : mode === "dineIn" && !table
+          : mode === "dineIn" && !table
             ? "/pedido/mesa"
             : "/pedido"
       }
@@ -1897,7 +1270,7 @@ function OrderReview() {
         <div className="wrap review-layout">
           <div className="review-card">
             <h2>Tu selección</h2>
-            {mode === "pickup" && <ReviewList items={[["Modalidad", "Para recoger"], ["Fecha", "Hoy"], ["Hora preferida", pickupTime]]} edits={{ "Modalidad": { label: "Cambiar", href: "/pedido" }, "Hora preferida": { label: "Cambiar hora", onClick: () => setEditingPickup(true) } }} />}
+            {mode === "pickup" && <ReviewList items={[["Modalidad", "Para recoger"]]} edits={{ Modalidad: { label: "Cambiar", href: "/pedido" } }} />}
             {mode === "dineIn" && <ReviewList items={[["Modalidad", "En Lunario"], ["Mesa", table ? "Mesa seleccionada" : "Sin mesa"]]} edits={{ "Modalidad": { label: "Cambiar", href: "/pedido" }, "Mesa": { label: "Cambiar mesa", href: "/pedido/mesa" } }} />}
             {cart.map((item) => {
               const p = productById(item.productId);
@@ -1938,7 +1311,6 @@ function OrderReview() {
           </aside>
         </div>
       </main>
-      {editingPickup && <PickupTimeDialog onClose={() => setEditingPickup(false)} />}
     </Guard>
   );
 }
@@ -1973,6 +1345,7 @@ function ReservationReview() {
                 kind="table"
                 selected={d.tableId}
                 onSelect={() => {}}
+                readOnly
               />
             </div>
           </div>
@@ -2001,7 +1374,7 @@ function CoworkingStart() {
         eyebrow="COFFEE TIME"
         title="Ideas con espacio."
         description="Explora los cuartos de coworking y señala el que prefieres para tu solicitud."
-        back="/ordenar"
+        back="/"
       />
       <div className="wrap gallery-grid">
         {[1, 2, 3].map((n) => (
@@ -2070,55 +1443,25 @@ function CoworkingConfigure() {
   const router = useRouter();
   const room = rooms.find((r) => r.id === d.roomId);
   const rate = rates.find((r) => r.id === d.rateId);
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const minimum =
     d.rateId === "light" && d.period === "hour"
       ? (rates.find((item) => item.id === "light")?.minHours ?? 1)
       : 1;
-  const quote = coworkingQuote(d.rateId, d.period, d.duration, d.people);
-  const longTerm = d.period === "week" || d.period === "month";
+  const reference = rate && d.period ? rate.prices[d.period] : null;
 
   function next() {
-    if (!d.rateId || !d.period || !d.duration || !d.date || !d.people) {
-      setError("Completa tarifa, periodo, cantidad, fecha y personas.");
-      return;
-    }
-    if (d.period === "hour" && !d.time) {
-      setError("Indica la hora de inicio.");
-      return;
-    }
-    if (d.duration < minimum) {
-      setError(`La tarifa Light requiere un mínimo de ${minimum} horas.`);
-      return;
-    }
-    if (d.people > (room?.capacity ?? 0)) {
-      setError(`Este cuarto admite hasta ${room?.capacity} personas.`);
-      return;
-    }
-    setError("");
+    const missing: Record<string, string> = {};
+    if (!d.rateId) missing.rate = "Elige una tarifa.";
+    if (!d.period) missing.period = "Elige un periodo.";
+    if (d.duration < minimum) missing.duration = `Indica al menos ${minimum} ${minimum === 1 ? "unidad" : "horas"}.`;
+    if (!d.date) missing.date = "Selecciona una fecha.";
+    if (!d.time) missing.time = "Indica la hora de inicio.";
+    if (!d.people) missing.people = "Indica cuántas personas asistirán.";
+    else if (d.people > (room?.capacity ?? 0)) missing.people = `Este cuarto admite hasta ${room?.capacity} personas.`;
+    setErrors(missing);
+    if (Object.keys(missing).length) return;
     router.push("/coworking/revision");
-  }
-
-  function requestLongStay() {
-    if (!room || !rate || !d.period || !d.date || !d.people || d.duration < 1)
-      return;
-    const periodName = periods.find((item) => item.id === d.period)?.name.toLowerCase();
-    const message = [
-      "Hola, quiero solicitar información para reservar coworking en Lunario.",
-      "",
-      `Espacio: ${room.name}`,
-      `Capacidad: ${room.capacity} personas`,
-      `Personas: ${d.people}`,
-      `Tarifa: ${rate.name}`,
-      `Periodo: ${d.duration} ${periodName}`,
-      `Fecha deseada: ${d.date}`,
-      "¿Me pueden confirmar disponibilidad y condiciones?",
-    ].join("\n");
-    window.open(
-      `https://wa.me/527711811972?text=${encodeURIComponent(message)}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
   }
 
   return (
@@ -2133,7 +1476,7 @@ function CoworkingConfigure() {
         <div className="wrap cowork-config">
           <div>
             <h2>Elige una tarifa</h2>
-            <div className="rate-grid">
+            <div className="rate-grid" aria-describedby={errors.rate ? "cowork-rate-error" : undefined}>
               {rates.map((r) => (
                 <button
                   key={r.id}
@@ -2153,10 +1496,11 @@ function CoworkingConfigure() {
                   <span className="eyebrow">TARIFA</span>
                   <strong>{r.name}</strong>
                   <p>{r.includes}</p>
-                  <small>Desde {formatMoney(r.prices.hour)} / hora</small>
+                  <small>{formatMoney(r.prices.hour)} / hora · tarifa publicada</small>
                 </button>
               ))}
             </div>
+            {errors.rate && <p id="cowork-rate-error" className="field-error" role="alert">{errors.rate}</p>}
             <section className="form-panel cowork-fields">
               <fieldset className="duration-field">
                 <legend>¿Cómo quieres reservar?</legend>
@@ -2178,9 +1522,8 @@ function CoworkingConfigure() {
                             d.period === period.id
                               ? Math.max(nextMinimum, d.duration)
                               : nextMinimum,
-                          time: period.id === "hour" ? d.time : "",
                         });
-                        setError("");
+                        setErrors({});
                       }}
                     >
                       <strong>
@@ -2191,13 +1534,12 @@ function CoworkingConfigure() {
                             : period.name}
                       </strong>
                       <small>
-                        {period.id === "week" || period.id === "month"
-                          ? "Atención por WhatsApp"
-                          : "Solicitud en línea"}
+                        Solicitud de demostración
                       </small>
                     </button>
                   ))}
                 </div>
+                {errors.period && <p className="field-error" role="alert">{errors.period}</p>}
               </fieldset>
               <div className="field-grid">
                 <label>
@@ -2207,6 +1549,8 @@ function CoworkingConfigure() {
                     min={minimum}
                     step="1"
                     value={d.duration || ""}
+                    aria-invalid={!!errors.duration}
+                    aria-describedby={errors.duration ? "cowork-duration-error" : undefined}
                     onChange={(e) =>
                       set({
                         duration: Math.max(
@@ -2216,6 +1560,7 @@ function CoworkingConfigure() {
                       })
                     }
                   />
+                  {errors.duration && <span id="cowork-duration-error" className="field-error" role="alert">{errors.duration}</span>}
                 </label>
                 <label>
                   <span className="field-label">
@@ -2224,21 +1569,25 @@ function CoworkingConfigure() {
                   <input
                     type="date"
                     value={d.date}
+                    aria-invalid={!!errors.date}
+                    aria-describedby={errors.date ? "cowork-date-error" : undefined}
                     onChange={(e) => set({ date: e.target.value })}
                   />
+                  {errors.date && <span id="cowork-date-error" className="field-error" role="alert">{errors.date}</span>}
                 </label>
-                {d.period === "hour" && (
-                  <label>
+                <label>
                     <span className="field-label">
                       <Clock size={16} /> Hora de inicio
                     </span>
                     <input
                       type="time"
                       value={d.time}
+                      aria-invalid={!!errors.time}
+                      aria-describedby={errors.time ? "cowork-time-error" : undefined}
                       onChange={(e) => set({ time: e.target.value })}
                     />
-                  </label>
-                )}
+                    {errors.time && <span id="cowork-time-error" className="field-error" role="alert">{errors.time}</span>}
+                </label>
                 <label>
                   <span className="field-label">
                     <Users size={16} /> Personas
@@ -2249,6 +1598,8 @@ function CoworkingConfigure() {
                     max={room?.capacity}
                     step="1"
                     value={d.people || ""}
+                    aria-invalid={!!errors.people}
+                    aria-describedby={errors.people ? "cowork-people-error" : undefined}
                     onChange={(e) =>
                       set({
                         people: Math.min(
@@ -2258,53 +1609,22 @@ function CoworkingConfigure() {
                       })
                     }
                   />
+                  {errors.people && <span id="cowork-people-error" className="field-error" role="alert">{errors.people}</span>}
                 </label>
               </div>
-              {d.rateId === "light" && d.period === "hour" && (
-                <p className="info-note">
-                  Renta mínima: {minimum} horas. Light por persona y hora:
-                  1–4 personas $30; 5–10 $27; 11–16 $25.
-                </p>
-              )}
-              {quote !== null && rate && d.period && (
+              {rate?.id === "light" && <p className="info-note">
+                Renta mínima: {rate.minHours} horas. Light por persona y hora: {rate.perPersonHourlyTiers.map((tier) => `${tier.people} personas ${formatMoney(tier.price)}`).join("; ")}.
+              </p>}
+              {reference !== null && rate && d.period && (
                 <div className="cowork-quote" aria-live="polite">
-                  <span>
-                    {rate.name} · {d.duration}{" "}
-                    {d.period === "hour"
-                      ? d.duration === 1 ? "hora" : "horas"
-                      : d.duration === 1 ? "día" : "días"}
-                    {d.period === "hour" && rate.id === "light"
-                      ? ` · ${d.people} personas × ${formatMoney(hourlyCoworkRate(rate.id, d.people) ?? 0)}/persona/h`
-                      : ""}
-                  </span>
-                  <strong>{formatMoney(quote)} de referencia</strong>
-                  <small>Importe sujeto a confirmación de Lunario.</small>
+                  <span>{rate.name} · {periods.find((period) => period.id === d.period)?.name}</span>
+                  <strong>{formatMoney(reference)} · tarifa publicada</strong>
+                  <small>Aplicación de tarifa sujeta a confirmación de Lunario.</small>
                 </div>
               )}
-              {longTerm && (
-                <p className="info-note">
-                  Las solicitudes por semana o mes se atienden por WhatsApp. No
-                  se confirma ni se cobra una reservación desde esta página.
-                </p>
-              )}
-              {error && (
-                <p className="field-error" role="alert">
-                  {error}
-                </p>
-              )}
-              {longTerm ? (
-                <button
-                  className="btn dark"
-                  disabled={!rate || !d.date || !d.people || d.duration < 1}
-                  onClick={requestLongStay}
-                >
-                  Solicitar por WhatsApp <ArrowRight size={17} />
-                </button>
-              ) : (
-                <button className="btn dark" onClick={next}>
-                  Revisar solicitud <ArrowRight size={17} />
-                </button>
-              )}
+              <button className="btn dark" onClick={next}>
+                Revisar solicitud <ArrowRight size={17} />
+              </button>
             </section>
           </div>
           <aside className="review-side cowork-summary">
@@ -2322,7 +1642,7 @@ function CoworkingConfigure() {
                   ],
                   [
                     "Referencia",
-                    quote === null ? "Solicitud por WhatsApp" : formatMoney(quote),
+                    reference === null ? "Elige una tarifa y un periodo" : formatMoney(reference),
                   ],
                 ]}
               />
@@ -2350,11 +1670,9 @@ function CoworkingReview() {
           period &&
           d.duration &&
           d.date &&
-          (period.id !== "hour" || d.time) &&
+          d.time &&
           d.people &&
           d.people <= room.capacity &&
-          period.id !== "week" &&
-          period.id !== "month" &&
           (rate.id !== "light" || period.id !== "hour" || d.duration >= (rate.minHours ?? 1))
         )
       }
@@ -2380,19 +1698,18 @@ function CoworkingReview() {
                   `${d.duration} ${d.duration > 1 ? ({ hour: "horas", day: "días", week: "semanas", month: "meses" } as const)[d.period ?? "hour"] : period?.name.toLowerCase()}`,
                 ],
                 ["Fecha", d.date],
-                ...(d.period === "hour" ? [["Hora de inicio", d.time] as [string, string]] : []),
+                ["Hora de inicio", d.time],
                 ["Personas", String(d.people)],
                 [
-                  "Importe de referencia",
-                  formatMoney(coworkingQuote(d.rateId, d.period, d.duration, d.people) ?? 0),
+                  "Tarifa publicada",
+                  rate && d.period ? formatMoney(rate.prices[d.period]) : "",
                 ],
               ]}
               edits={{ Capacidad: { label: "Cambiar cuarto", href: "/coworking" }, Tarifa: { label: "Cambiar", href: "/coworking/configurar" }, Periodo: { label: "Cambiar", href: "/coworking/configurar" }, Duración: { label: "Cambiar", href: "/coworking/configurar" }, Fecha: { label: "Cambiar", href: "/coworking/configurar" }, "Hora de inicio": { label: "Cambiar", href: "/coworking/configurar" }, Personas: { label: "Cambiar", href: "/coworking/configurar" }}}
             />
             {rate?.id === "light" && (
               <p className="info-note">
-                Light: renta mínima de 3 horas. Tarifa por persona por hora: 1–4
-                $30, 5–10 $27, 11–16 $25.
+                Light: renta mínima de {rate.minHours} horas. Tarifa por persona por hora: {rate.perPersonHourlyTiers.map((tier) => `${tier.people} personas ${formatMoney(tier.price)}`).join("; ")}.
               </p>
             )}
           </div>
@@ -2409,73 +1726,21 @@ function CoworkingReview() {
     </Guard>
   );
 }
-function requestReceiptSummary(req: DemoRequest): ReceiptSummary | null {
-  if (!canPayRequest(req.kind)) return null;
-  if (req.kind === "order") {
-    const snapshot = req.snapshot as {
-      mode: "dineIn" | "pickup" | null;
-      cart: CartItem[];
-    };
-    const lineItems = (snapshot.cart ?? []).flatMap((item) => {
-      const product = productById(item.productId);
-      if (!product) return [];
-      const labels = selectedLabels(product, item.selections);
-      return [{
-        description: `${item.quantity} × ${product.name}${labels ? ` · ${labels}` : ""}`,
-        quantity: item.quantity,
-        total: unitPrice(product, item.selections) * item.quantity,
-      }];
-    });
-    const total = lineItems.reduce((sum, item) => sum + item.total, 0);
-    return {
-      operation: snapshot.mode === "pickup" ? "Pedido para recoger" : "Pedido en Lunario",
-      lineItems,
-      subtotal: total,
-      total,
-    };
-  }
-
-  const draft = req.snapshot as CoworkDraft;
-  const room = rooms.find((item) => item.id === draft.roomId);
-  const rate = rates.find((item) => item.id === draft.rateId);
-  const unit = draft.period === "hour" ? "horas" : "días";
-  const total = coworkingQuote(
-    draft.rateId,
-    draft.period,
-    draft.duration,
-    draft.people,
-  ) ?? 0;
-  return {
-    operation: "Coworking",
-    lineItems: [{
-      description: `${room?.name ?? "Espacio de coworking"} · ${rate?.name ?? "Tarifa"} · ${draft.duration} ${unit} · ${draft.people} ${draft.people === 1 ? "persona" : "personas"}`,
-      quantity: draft.duration,
-      total,
-    }],
-    subtotal: total,
-    total,
-  };
-}
-
 function RequestView() {
+  const router = useRouter();
+  const [startingNew, setStartingNew] = useState(false);
   const req = useDemoStore((s) => s.request);
   const advance = useDemoStore((s) => s.advanceRequest);
   const payment = useDemoStore((s) => s.selectPayment);
-  const completePayment = useDemoStore((s) => s.completePayment);
-  const accessMode = useDemoStore((s) => s.accessMode);
-  const payable = req ? canPayRequest(req.kind) : false;
-  const paymentMethods = req
-    ? availablePaymentMethods(req.kind, req.accessMode ?? accessMode)
-    : [];
-  const summary = req ? requestReceiptSummary(req) : null;
+  const reset = useDemoStore((s) => s.resetFlow);
   const target =
     req?.kind === "order"
       ? "/pedido"
       : req?.kind === "tableReservation"
         ? "/reservar"
-        : "/coworking";
+        : req?.kind === "coworking" ? "/coworking" : "/";
   return (
-    <Guard valid={!!req} to={target ?? "/"}>
+    <Guard valid={!!req || startingNew} to={target ?? "/"}>
       <main className="request-page">
         <div className="wrap request-center">
           <span className="demo-badge">ESTADO DE DEMOSTRACIÓN</span>
@@ -2531,58 +1796,32 @@ function RequestView() {
               Simular confirmación <ArrowRight size={17} />
             </button>
           )}
-          {req?.status === "confirmed" && payable && !req.receipt && (
+          {req?.status === "confirmed" && (
             <div className="payment-panel">
               <h2>Opciones de pago</h2>
-              <p className="muted">
-                Elige cómo completar esta demostración. No se procesan cobros.
-              </p>
+              <p className="muted">Así podría continuar la experiencia después de la confirmación.</p>
               <div className="payment-options">
-                {paymentMethods.map((method) => (
-                  <button
-                    key={method}
-                    className={req.paymentSelection === method ? "selected" : ""}
-                    aria-pressed={req.paymentSelection === method}
-                    onClick={() => summary && payment(method, summary)}
-                  >
-                    {method === "cash" ? <Banknote /> : <CreditCard />}
-                    {method === "apple-pay"
-                      ? "Apple Pay"
-                      : method === "card"
-                        ? "Tarjeta"
-                        : "Efectivo"}
+                {paymentMethods.map(({ id, label }) => (
+                  <button key={id} className={req.paymentSelection === id ? "selected" : ""}
+                    aria-pressed={req.paymentSelection === id} onClick={() => payment(id)}>
+                    {id === "cash" ? <Banknote /> : <CreditCard />}{label}
                   </button>
                 ))}
               </div>
-              {(req.accessMode ?? accessMode) !== "google-demo" &&
-                (req.accessMode ?? accessMode) !== "email-demo" && (
-                <p className="info-note">
-                  Inicia sesión para pagar con tarjeta o Apple Pay.
-                </p>
-              )}
-              {req.paymentSelection && req.paymentSelection !== "cash" && (
-                <button
-                  className="btn dark payment-complete"
-                  onClick={() => summary && completePayment(summary)}
-                >
-                  Simular pago con {req.paymentSelection === "card" ? "tarjeta" : "Apple Pay"}
-                  <ArrowRight size={17} />
-                </button>
-              )}
-              {req.paymentSelection && req.paymentSelection !== "cash" && (
-                <p className="payment-selected">
-                  <Check size={17} /> Método seleccionado para la simulación
-                </p>
-              )}
-              <p className="info-note">
-                Tarjeta y Apple Pay son simulaciones frontend.
-              </p>
+              {req.paymentSelection && <p className="payment-selected" role="status">
+                <Check size={17} /> {paymentMethods.find((method) => method.id === req.paymentSelection)?.label} seleccionado para la demostración.
+              </p>}
+              <p className="info-note">Demostración visual. No se realizará ningún cobro.</p>
             </div>
           )}
-          {req?.receipt && <Receipt receipt={req.receipt} />}
           <Link className="back-link" href="/">
             Volver al inicio
           </Link>
+          {req?.status === "confirmed" && <button className="btn dark" onClick={() => {
+            setStartingNew(true);
+            reset(req.kind);
+            router.push(target);
+          }}>{req.kind === "order" ? "Nuevo pedido" : req.kind === "tableReservation" ? "Nueva reserva" : "Nueva solicitud de coworking"}</button>}
         </div>
       </main>
     </Guard>
@@ -2594,10 +1833,8 @@ export default function DemoApp() {
   const ready = useHydrated();
   const routes: Record<string, React.ReactNode> = {
     "/": <Home />,
-    "/ordenar": <OrderEntry />,
     "/menu": <MenuView />,
     "/pedido": <ChoicePage />,
-    "/pedido/recoger-hora": <PickupTimePage />,
     "/pedido/mesa": <OrderTable />,
     "/pedido/revision": <OrderReview />,
     "/reservar": <ReservationStart />,

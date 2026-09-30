@@ -17,7 +17,7 @@ export const rates = [
     name: "Premium",
     prices: { hour: 70, day: 280, week: 1120, month: 2580 },
     includes:
-      "Bebidas ilimitadas: capuchino/latte, sodas italianas, lattes saborizados indicados, té, americano o agua.",
+      "Bebidas ilimitadas: capuchino/latte, sodas italianas, lattes de matcha, taro o red velvet, té, americano o agua.",
     minHours: null,
     perPersonHourlyTiers: null,
     roomRestrictions: null,
@@ -26,7 +26,7 @@ export const rates = [
     id: "basic",
     name: "Básica",
     prices: { hour: 50, day: 219, week: 860, month: 1900 },
-    includes: "Incluye una bebida entre las opciones publicadas.",
+    includes: "Incluye una bebida: expresso, americano, té o agua.",
     minHours: null,
     perPersonHourlyTiers: null,
     roomRestrictions: null,
@@ -45,36 +45,3 @@ export const rates = [
     roomRestrictions: null,
   },
 ] as const;
-
-export function hourlyCoworkRate(
-  rateId: string,
-  people: number,
-): number | null {
-  const rate = rates.find((item) => item.id === rateId);
-  if (!rate) return null;
-  if (rate.id !== "light") return rate.prices.hour;
-  const tier = rate.perPersonHourlyTiers?.find((item) => {
-    const [min, max] = item.people.split("–").map(Number);
-    return people >= min && people <= max;
-  });
-  return tier?.price ?? null;
-}
-
-export function coworkingQuote(
-  rateId: string | null,
-  period: Period | null,
-  quantity: number,
-  people: number,
-): number | null {
-  const rate = rates.find((item) => item.id === rateId);
-  if (!rate || !period || quantity < 1) return null;
-  if (period === "week" || period === "month") return null;
-  const hourlyRate = period === "hour" ? hourlyCoworkRate(rate.id, people) : null;
-  if (period === "hour" && hourlyRate === null) return null;
-  const unitPrice =
-    period === "hour"
-      ? hourlyRate! * (rate.id === "light" ? people : 1)
-      : rate.prices.day;
-  if (!Number.isFinite(unitPrice)) return null;
-  return unitPrice * quantity;
-}

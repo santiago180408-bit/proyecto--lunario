@@ -518,6 +518,7 @@ export const products: Product[] = [
   ).map(([name, price], i) =>
     fixed(`waffle-${i}`, "postres", `Waffle ${name.toLowerCase()}`, price),
   ),
+  fixed("crepizza", "postres", "Crepizza", 105, "Puré de tomate, queso manchego, mozzarella, morrón, jalapeños, cebolla morada y finas hierbas; cobertura sujeta a consulta"),
   ...[
     "Trufa",
     "Limón",
@@ -683,15 +684,13 @@ export const products: Product[] = [
     ]),
   ),
 ];
-// Confirmed associations from the official menu, pages 4, 6–9.
-// Ambiguous extras, unspecified fruits and unconfirmed package choices remain informational.
+// Only associations confirmed by Menu_Lunario_organizado.docx are selectable.
+// Proteins/sauces, crepe bases and waffle batter marked for confirmation stay hidden.
 for (const product of products) {
   const add = (...groups: OptionGroup[]) =>
     product.optionGroups.push(...groups);
   if (
     [
-      "expresso-cortado",
-      "macciato",
       "capuchino",
       "latte",
       "caramel",
@@ -711,27 +710,6 @@ for (const product of products) {
           ["Deslactosada", 10],
           ["Almendras", 15],
           ["Avena", 20],
-        ],
-        "delta",
-      ),
-    );
-  }
-  if (["chilaquiles", "enchiladas"].includes(product.id)) {
-    add(
-      choice(`${product.id}-salsa`, "Salsa", [
-        "Salsa verde",
-        "Salsa roja",
-        "Salsa Lunario (habanero)",
-      ]),
-      group(
-        `${product.id}-protein`,
-        "Proteína",
-        [
-          ["Pollo", 0],
-          ["Huevo", 0],
-          ["Jamón", 0],
-          ["Arrachera", 32],
-          ["Bisteck de res o cerdo", 32],
         ],
         "delta",
       ),
@@ -763,16 +741,6 @@ for (const product of products) {
         "Champiñones con queso manchego",
       ]),
     );
-  if (product.id.startsWith("crepa-dulce-"))
-    add(
-      choice(`${product.id}-base`, "Base", [
-        "Philadelphia",
-        "Nutella",
-        "Cajeta",
-      ]),
-    );
-  if (product.id.startsWith("waffle-"))
-    add(choice(`${product.id}-base`, "Base", ["Vainilla", "Cocoa"]));
   if (product.categoryId === "emparedados")
     add({
       ...group(
@@ -786,16 +754,7 @@ for (const product of products) {
       ),
       required: false,
     });
-  if (["alitas", "boneless"].includes(product.id))
-    add(
-      choice(`${product.id}-salsa`, "Salsa", [
-        "Mango habanero",
-        "BBQ",
-        "Picafresa",
-        "Tamarindo",
-        "Jalapeño",
-      ]),
-    );
+
 }
 export const visibleGroups = (
   product: Product,
