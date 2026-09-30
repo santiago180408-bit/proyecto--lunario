@@ -19,7 +19,15 @@ export function LandingHero() {
       />
       <div className={s.heroOverlay} aria-hidden="true" />
       <div className={`${s.container} ${s.heroContent}`}>
-        <h1>Lunario Café</h1>
+        <h1 className={s.heroBrand}>
+          <Image
+            src="/brand/lunario-logo-horizontal.png"
+            alt="Lunario Café"
+            width={900}
+            height={265}
+            priority
+          />
+        </h1>
         <p className={s.brandPhrase}>
           Buen café para <strong>grandes ideas.</strong>
         </p>

@@ -62,6 +62,14 @@ for (const product of products) {
     assert(!product.optionGroups.some((group) => group.label === "Base"), `${product.id}: source-pending base exposed`);
 }
 const latte = products.find((product) => product.id === "latte");
+const separateLattes = products.filter((p) => p.menuSection);
+assert.equal(separateLattes.length, 9);
+assert.equal(products.find((p) => p.id === "lattes-saborizados").enabledInDemo, false);
+for (const p of separateLattes) {
+  assert.equal(p.optionGroups.length, 2);
+  assert.equal(startingPrice(p), 55);
+  assert.equal(unitPrice(p, { [`${p.id}-size`]: `${p.id}-size-2`, [`${p.id}-milk`]: `${p.id}-milk-3` }), 83);
+}
 assert.equal(
   unitPrice(latte, { "latte-size": "latte-size-1", "latte-milk": "latte-milk-2" }),
   74,

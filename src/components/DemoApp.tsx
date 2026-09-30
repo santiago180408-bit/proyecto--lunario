@@ -627,16 +627,24 @@ function MenuView() {
             No encontramos productos. Elige otra categoría.
           </p>
         )}
-        <div className="product-grid">
-          {visible.map((p) => (
-            <ProductCard
-              key={p.id}
-              product={p}
-              transactionalMode={!!mode}
-              onOpen={setOpen}
-            />
-          ))}
-        </div>
+        {(active === "bebidas"
+          ? ["Matcha", "Lattes saborizados", "Otras bebidas"]
+          : [""]
+        ).map((section) => (
+          <section key={section} className="menu-family">
+            {section && <h3>{section}</h3>}
+            <div className="product-grid">
+              {visible.filter((p) => !section || (p.menuSection ?? "Otras bebidas") === section).map((p) => (
+                <ProductCard
+                  key={p.id}
+                  product={p}
+                  transactionalMode={!!mode}
+                  onOpen={setOpen}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
       {open && (
         <ProductConfigurator product={open} onClose={() => setOpen(null)} />

@@ -22,7 +22,8 @@ export type Product = {
   basePrice: number | null;
   optionGroups: OptionGroup[];
   sourceStatus: "confirmed";
-  enabledInDemo: true;
+  enabledInDemo: boolean;
+  menuSection?: string;
   notesInternal?: string;
 };
 export const categories = [
@@ -220,7 +221,8 @@ export const products: Product[] = [
       "Baileys",
     ]),
   ),
-  variant(
+  // Retain the original configuration for items already saved in the demo cart.
+  { ...variant(
     "lattes-saborizados",
     "bebidas",
     "Lattes saborizados",
@@ -241,7 +243,32 @@ export const products: Product[] = [
       "Chocolate",
       "Chocolate blanco",
     ]),
-  ),
+  ), enabledInDemo: false },
+  ...([
+    ["matcha", "Matcha", "Matcha"],
+    ["latte-taro", "Latte de taro", "Lattes saborizados"],
+    ["latte-red-velvet", "Latte red velvet", "Lattes saborizados"],
+    ["latte-golden-milk", "Golden milk", "Lattes saborizados"],
+    ["latte-cajeta", "Latte de cajeta", "Lattes saborizados"],
+    ["latte-chai", "Latte chai", "Lattes saborizados"],
+    ["latte-chai-manzana", "Latte chai manzana canela", "Lattes saborizados"],
+    ["latte-chocolate", "Latte de chocolate", "Lattes saborizados"],
+    ["latte-chocolate-blanco", "Latte de chocolate blanco", "Lattes saborizados"],
+  ] as const).map(([id, name, menuSection]) => ({
+    ...variant(
+      id, "bebidas", name, "Sin café.",
+      group(`${id}-size`, "Presentación", [
+        ["Mediano · 14 oz", 55],
+        ["Grande · 16 oz", 63],
+        ["Frío · 16 oz", 63],
+      ]),
+      group(`${id}-milk`, "Leche", [
+        ["Entera", 0], ["Deslactosada", 10],
+        ["Almendras", 15], ["Avena", 20],
+      ], "delta"),
+    ),
+    menuSection,
+  })),
   variant(
     "tisanas",
     "bebidas",
