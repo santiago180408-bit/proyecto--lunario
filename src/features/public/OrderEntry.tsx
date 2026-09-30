@@ -5,6 +5,7 @@ import Link from "next/link";
 import { actions } from "./content";
 import { BrandActionIcon, type ActionIcon } from "./BrandActionIcon";
 import s from "./public.module.css";
+import PublicMotion from "./PublicMotion";
 
 export function OrderEntryHeader() {
   return (
@@ -59,6 +60,7 @@ function OrderEntryCard({
       className={`${s.entryCard} ${isHighlighted ? s.highlighted : ""}`}
       href={href}
       data-intent={intent}
+      data-reveal
     >
       <BrandActionIcon icon={icon} />
       <div className={s.entryCardCopy}>
@@ -106,7 +108,8 @@ export function OrderEntryGrid() {
 }
 export default function OrderEntry() {
   return (
-    <div className={s.entryPage}>
+    <div className={s.entryPage} data-public-motion>
+      <PublicMotion />
       <a className={s.skip} href="#acciones">
         Saltar al contenido
       </a>

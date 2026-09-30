@@ -1465,3 +1465,282 @@
     transform: none !important;
   }
 }
+
+/* Final addendum: brand-led hero, one gateway cluster and restrained action light. */
+.header .brand {
+  width: 64px;
+  height: 64px;
+  min-height: 44px;
+  border: 1px solid #f2c78b65;
+  border-radius: 50%;
+}
+.header .brand img {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-position: center;
+}
+.hero h1 {
+  font-size: clamp(66px, 7.4vw, 106px);
+  margin-bottom: 20px;
+}
+.heroContent > .brandPhrase {
+  font-family: var(--serif);
+  font-size: clamp(26px, 2.5vw, 36px);
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  max-width: 560px;
+  margin-bottom: 26px;
+}
+.brandPhrase strong {
+  font-weight: 600;
+  font-style: italic;
+  color: #f2c78b;
+}
+.orderCluster {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  width: min(100%, 860px);
+  margin: auto;
+  min-height: 140px;
+  padding: 20px 36px;
+  border-radius: 70px;
+  border: 1px solid #c6a67865;
+  background: linear-gradient(125deg, #fffcf6, #f4edde);
+  box-shadow: 6px 8px 20px #44331f0c;
+  font-family: var(--serif);
+  font-size: clamp(32px, 3vw, 43px);
+  font-weight: 600;
+  transition:
+    transform var(--motion-normal) var(--ease),
+    border-color var(--motion-normal),
+    box-shadow var(--motion-normal);
+}
+.clusterEmblem {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #0d0c0b;
+  border: 1px solid #f2c78b70;
+}
+.clusterArrow {
+  margin-left: auto;
+  font-family: var(--sans);
+  font-size: 32px;
+  color: #84643d;
+  transition: transform var(--motion-normal) var(--ease);
+}
+.orderCluster::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 42%;
+  background: linear-gradient(90deg, transparent, #f2c78b, transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+.publicPage[data-motion-ready] [data-visible] .orderCluster::before {
+  animation: borderLight 420ms var(--ease) 100ms both;
+}
+.orderCluster:is(:hover, :focus-visible) {
+  transform: translateY(-3px);
+  border-color: #c9954d;
+  box-shadow: 0 8px 24px #c0924530;
+}
+.orderCluster:is(:hover, :focus-visible) .clusterArrow {
+  transform: translateX(4px);
+}
+.orderCluster:active {
+  transform: translateY(1px);
+}
+.entryCard {
+  --action-glow: #f2c78b30;
+  --entry-delay: 0ms;
+}
+.entryCard[data-intent="pedir"] {
+  --action-glow: #ff9b6b28;
+  --action-light: #f2c78b;
+}
+.entryCard[data-intent="mesa"] {
+  --action-glow: #f8f5ec25;
+  --action-light: #f8f5ec;
+  --entry-delay: 50ms;
+}
+.entryCard[data-intent="coworking"] {
+  --action-glow: #8b7a6a50;
+  --action-light: #f2c78b;
+  --entry-delay: 100ms;
+}
+.entryCard::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: radial-gradient(
+    ellipse at 45% 45%,
+    var(--action-glow),
+    transparent 68%
+  );
+  opacity: 0.35;
+  pointer-events: none;
+  transition: opacity var(--motion-normal);
+}
+.entryCard .actionIcon {
+  position: relative;
+  filter: drop-shadow(0 5px 12px var(--action-glow));
+  transition:
+    transform 160ms var(--ease),
+    filter var(--motion-normal);
+}
+.entryCard .actionIcon::after {
+  content: "";
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  top: 25%;
+  right: 23%;
+  border-radius: 50%;
+  background: var(--action-light);
+  opacity: 0;
+  box-shadow: 0 0 10px var(--action-light);
+  pointer-events: none;
+}
+.entryPage[data-motion-ready] .entryCard[data-reveal] {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity var(--motion-section) var(--ease) var(--entry-delay),
+    transform var(--motion-section) var(--ease) var(--entry-delay),
+    border-color var(--motion-normal),
+    box-shadow var(--motion-normal);
+}
+.entryPage[data-motion-ready] .entryCard[data-intent="coworking"][data-reveal] {
+  transform: scale(0.985);
+}
+.entryPage[data-motion-ready] .entryCard[data-visible] {
+  opacity: 1;
+  transform: none;
+}
+.entryPage[data-motion-ready]
+  .entryCard[data-intent="coworking"][data-visible] {
+  transform: none;
+}
+.entryPage[data-motion-ready] .entryCard[data-intent]:is(:hover, :focus-visible) {
+  transform: translateY(-3px);
+  transition:
+    transform var(--motion-normal) var(--ease),
+    border-color var(--motion-normal),
+    box-shadow var(--motion-normal);
+}
+.entryCard:is(:hover, :focus-visible)::before {
+  opacity: 1;
+}
+.entryCard:is(:hover, :focus-visible) .actionIcon {
+  filter: drop-shadow(0 5px 18px var(--action-glow));
+}
+.entryCard:is(:hover, :focus-visible) .actionIcon::after {
+  animation: detailLight 220ms var(--ease);
+}
+.entryCard:is(:hover, :focus-visible) .coworking {
+  transform: translateX(3px) rotate(-2deg);
+}
+.entryPage[data-motion-ready] .entryCard[data-intent]:active {
+  transform: translateY(1px) scale(0.997);
+}
+.entryCard:active .actionIcon {
+  transform: translateY(1px);
+}
+@keyframes borderLight {
+  0% {
+    opacity: 0;
+    transform: translateX(-80%);
+  }
+  35% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(240%);
+  }
+}
+@keyframes detailLight {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+@media (max-width: 1023px) {
+  .header .brand {
+    width: 52px;
+    height: 52px;
+  }
+  .orderCluster {
+    color: #f8f5ec;
+    background:
+      radial-gradient(ellipse at 12% 65%, #b67f3720, transparent 40%),
+      linear-gradient(125deg, #29231e, #131211);
+    border-color: #f2c78b45;
+    border-radius: 24px;
+  }
+  .clusterArrow {
+    color: #f2c78b;
+  }
+}
+@media (max-width: 600px) {
+  .hero h1 {
+    font-size: clamp(58px, 15.2vw, 68px);
+    max-width: 350px;
+  }
+  .heroContent > .brandPhrase {
+    font-size: 28px;
+    max-width: 285px;
+    line-height: 1.1;
+    margin-bottom: 24px;
+  }
+  .orderCluster {
+    min-height: 118px;
+    padding: 18px 22px;
+    gap: 20px;
+    font-size: 31px;
+  }
+  .clusterEmblem {
+    width: 64px;
+    height: 64px;
+  }
+  .clusterEmblem img {
+    width: 58px;
+    height: 58px;
+  }
+  .clusterArrow {
+    font-size: 29px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .entryPage[data-motion-ready] .entryCard[data-reveal] {
+    opacity: 1;
+    transform: none !important;
+    transition-delay: 0ms;
+  }
+  .orderCluster::before,
+  .entryCard .actionIcon::after {
+    animation: none !important;
+  }
+  .entryCard::before {
+    transition: opacity 1ms;
+  }
+  .clusterArrow {
+    transform: none !important;
+  }
+}
