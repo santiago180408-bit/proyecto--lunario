@@ -235,7 +235,9 @@ function Header() {
     let timer: ReturnType<typeof setTimeout>;
     const notify = (event: Event) => {
       const action = (event as CustomEvent<{ action?: string }>).detail?.action;
-      setToast(action === "added" ? "Agregado al pedido" : "Pedido actualizado");
+      setToast(
+        action === "added" ? "Agregado al pedido" : "Pedido actualizado",
+      );
       clearTimeout(timer);
       timer = setTimeout(() => setToast(""), 2200);
     };
@@ -251,11 +253,22 @@ function Header() {
   }, [showCart]);
   useEffect(() => refreshPickupDate(), [refreshPickupDate]);
   const [menu, setMenu] = useState(false);
+  const [pastHero, setPastHero] = useState(false);
+  useEffect(() => {
+    if (path !== "/") return;
+    const update = () =>
+      setPastHero(window.scrollY > Math.max(300, window.innerHeight * 0.7));
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, [path]);
   const [cartOpen, setCartOpen] = useState(false);
   useEffect(() => setMenu(false), [path]);
   return (
     <>
-      <header className={`site-header ${path === "/" ? "on-hero" : ""}`}>
+      <header
+        className={`site-header ${path === "/" ? "home-header" : ""} ${path === "/" && !pastHero ? "on-hero" : ""}`}
+      >
         <div className="wrap header-inner">
           <Link
             href="/"
@@ -263,12 +276,13 @@ function Header() {
             aria-label="Lunario Café, inicio"
           >
             <Image
-              src="/brand/lunario-logo-horizontal.png"
-              alt="Lunario Café"
-              width={185}
-              height={52}
+              src="/brand/lunario-isotipo-marfil.svg"
+              alt=""
+              width={42}
+              height={42}
               priority
             />
+            <span>Lunario</span>
           </Link>
           <Link
             href="/"
@@ -281,6 +295,7 @@ function Header() {
               width={42}
               height={42}
             />
+            <span>Lunario</span>
           </Link>
           <nav className="desktop-nav" aria-label="Principal">
             {count > 0 && (
@@ -293,14 +308,17 @@ function Header() {
                 <span className="cart-badge">{count}</span>
               </button>
             )}
-            <Link href="/menu">Menú</Link>
-            <Link href="/reservar">Reservar</Link>
-            <Link href="/coworking">Coworking</Link>
-            <Link className="header-order" href="/pedido">
-              Pedir <ArrowRight size={15} />
+            <Link href="/#descubre">Descubre</Link>
+            <Link href="/#modalidad">Tu pedido</Link>
+            <Link href="/#coworking">Coworking</Link>
+            <Link className="header-order" href="/ordenar">
+              Ir a ordenar <ArrowRight size={15} />
             </Link>
           </nav>
           <div className="mobile-actions">
+            <Link className="mobile-order" href="/ordenar">
+              Ordenar
+            </Link>
             {cart.length > 0 && (
               <button
                 aria-label={`Abrir carrito, ${count} ${count === 1 ? "producto" : "productos"}`}
@@ -320,7 +338,10 @@ function Header() {
               aria-expanded={menu}
               onClick={() => setMenu(!menu)}
             >
-              <span className={`menu-icon ${menu ? "is-open" : ""}`} aria-hidden="true">
+              <span
+                className={`menu-icon ${menu ? "is-open" : ""}`}
+                aria-hidden="true"
+              >
                 <MenuIcon className="menu-glyph" />
                 <X className="close-glyph" />
               </span>
@@ -334,16 +355,24 @@ function Header() {
           inert={!menu}
         >
           <Link href="/">Inicio</Link>
-          <Link href="/menu">Menú</Link>
-          <Link href="/reservar">Reservar</Link>
-          <Link href="/coworking">Coworking</Link>
-          <Link href="/pedido">Pedir</Link>
+          <Link href="/#descubre" onClick={() => setMenu(false)}>
+            Descubre
+          </Link>
+          <Link href="/#modalidad" onClick={() => setMenu(false)}>
+            Tu pedido
+          </Link>
+          <Link href="/#coworking" onClick={() => setMenu(false)}>
+            Coworking
+          </Link>
+          <Link href="/ordenar">Ir a ordenar</Link>
         </nav>
       </header>
       {showCart && !cartOpen && !menu && (
         <button
           className="floating-cart"
-          onClick={() => isOrderReview ? setOrderReviewActionOpen(true) : setCartOpen(true)}
+          onClick={() =>
+            isOrderReview ? setOrderReviewActionOpen(true) : setCartOpen(true)
+          }
           aria-label={`${isOrderReview ? "Enviar solicitud" : "Ver pedido"}, ${count} ${count === 1 ? "producto" : "productos"}, ${formatMoney(cartTotal(cart))}`}
         >
           <span className="cart-icon">
@@ -351,20 +380,30 @@ function Header() {
             <b key={count}>{count}</b>
           </span>
           <span>
-            <small>{orderMode === "pickup" ? "Para recoger" : "Tu pedido"}</small>
+            <small>
+              {orderMode === "pickup" ? "Para recoger" : "Tu pedido"}
+            </small>
             <strong>{formatMoney(cartTotal(cart))}</strong>
             {orderMode === "pickup" && pickupTime && (
               <small className="pickup-cart-context">
-                {pickupDate === localDateKey() ? `Hoy · ${pickupTime}` : "Hora por elegir"}
+                {pickupDate === localDateKey()
+                  ? `Hoy · ${pickupTime}`
+                  : "Hora por elegir"}
               </small>
             )}
           </span>
           <span className="cart-cta">
-            {isOrderReview ? "Enviar solicitud" : "Ver pedido"} <ArrowRight size={18} />
+            {isOrderReview ? "Enviar solicitud" : "Ver pedido"}{" "}
+            <ArrowRight size={18} />
           </span>
         </button>
       )}
-      {orderReviewActionOpen && <AccessDialog kind="order" onClose={() => setOrderReviewActionOpen(false)} />}
+      {orderReviewActionOpen && (
+        <AccessDialog
+          kind="order"
+          onClose={() => setOrderReviewActionOpen(false)}
+        />
+      )}
       <div className="toast" role="status">
         {toast && (
           <span>
@@ -473,10 +512,10 @@ function Footer() {
           />
         </Link>
         <nav aria-label="Navegación de pie de página">
-          <Link href="/menu">Menú</Link>
-          <Link href="/pedido">Pedir</Link>
-          <Link href="/reservar">Reservar</Link>
-          <Link href="/coworking">Coworking</Link>
+          <Link href="/#descubre">Descubre</Link>
+          <Link href="/#modalidad">Tu pedido</Link>
+          <Link href="/#coworking">Coworking</Link>
+          <Link href="/ordenar">Ir a ordenar</Link>
         </nav>
         <p>
           Demo visual de Lunario Café.
@@ -488,127 +527,286 @@ function Footer() {
   );
 }
 function Home() {
+  const [photo, setPhoto] = useState(0);
+  const gallery = [
+    "/media/coworking-1.jpg",
+    "/media/coworking-2.jpg",
+    "/media/coworking-3.jpg",
+  ];
+  const touch = useRef<number | null>(null);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const items = document.querySelectorAll<HTMLElement>(".landing-reveal");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("revealed");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12 },
+    );
+    items.forEach((item) => observer.observe(item));
+    return () => observer.disconnect();
+  }, []);
   return (
-    <>
+    <main>
       <section className="hero">
         <div
           className="hero-photo"
           role="img"
-          aria-label="Café fotografiado en el menú oficial de Lunario"
+          aria-label="Fotografía de café de Lunario"
         />
         <div className="hero-shade" />
         <div className="wrap hero-content">
-          <p className="eyebrow light">CAFÉ · ENCUENTROS · IDEAS</p>
+          <p className="eyebrow light">LUNARIO CAFÉ</p>
           <h1>
-            Un momento
-            <br />
-            <em>para quedarte.</em>
+            Buen café para <em>grandes ideas</em>
           </h1>
-          <p>Explora la experiencia de Lunario Café.</p>
+          <p>Café, comida y espacios para trabajar a tu ritmo.</p>
           <div className="hero-actions">
-            <Link className="btn champagne" href="/pedido">
-              Pedir <ArrowRight size={17} />
-            </Link>
-            <Link className="btn outline-light" href="/reservar">
-              Reservar mesa
+            <Link className="btn champagne" href="/ordenar">
+              Explorar Lunario <ArrowRight size={17} />
             </Link>
           </div>
         </div>
-        <div className="hero-side">LUNARIO CAFÉ / DEMO V2</div>
       </section>
-      <section className="wrap home-actions">
+      <section
+        className="brand-pause landing-reveal"
+        aria-label="Café, encuentros e ideas"
+      >
+        <p>
+          Café <span>·</span> Encuentros <span>·</span> Ideas
+        </p>
+      </section>
+      <section className="discover wrap" id="descubre">
         <div className="section-intro">
-          <p className="eyebrow">ELIGE TU MOMENTO</p>
-          <h2>¿Qué te trae hoy?</h2>
+          <p className="eyebrow">DESCUBRE LUNARIO</p>
+          <h2>Un lugar, varias formas de disfrutarlo.</h2>
         </div>
-        <div className="action-grid">
-          <Link href="/pedido" className="action-card">
-            <span className="icon-holder warm">
-              <ShoppingBag />
-            </span>
-            <h3>Pedir</h3>
-            <p>Para disfrutar aquí o recoger.</p>
-            <ArrowRight />
-          </Link>
-          <Link href="/reservar" className="action-card">
-            <span className="icon-holder lavender">
-              <CalendarDays />
-            </span>
-            <h3>Reservar mesa</h3>
-            <p>Elige tu fecha y una mesa en el plano.</p>
-            <ArrowRight />
-          </Link>
-          <Link href="/coworking" className="action-card">
-            <span className="icon-holder mist">
-              <Laptop />
-            </span>
-            <h3>Coworking</h3>
-            <p>Encuentra un espacio para tus ideas.</p>
-            <ArrowRight />
-          </Link>
-        </div>
-      </section>
-      <section className="home-menu">
-        <div className="wrap split-section">
-          <div>
-            <p className="eyebrow">LA CARTA</p>
-            <h2>
-              Tu pausa favorita
-              <br />
-              empieza aquí.
-            </h2>
-            <p className="muted">
-              Cafés, desayunos y algo para cada antojo. Explora los productos y
-              precios publicados por Lunario.
-            </p>
-            <Link className="btn dark" href="/menu">
-              Ver menú <ArrowRight size={17} />
-            </Link>
-          </div>
-          <div className="menu-preview">
-            <div>
-              <small>BEBIDAS CON CAFÉ</small>
-              <strong>Café latte</strong>
-              <span>Desde $52</span>
+        <div className="discover-grid">
+          <article className="discover-card discover-cafe landing-reveal">
+            <div className="discover-image">
+              <Image
+                src="/media/cafe-hero.jpg"
+                alt="Café de Lunario"
+                fill
+                sizes="(max-width: 760px) 100vw, 40vw"
+              />
             </div>
-            <div>
-              <small>DESAYUNOS</small>
-              <strong>Chilaquiles</strong>
-              <span>Desde $85</span>
+            <div className="discover-copy">
+              <p className="eyebrow">CAFÉ Y COMIDA</p>
+              <h3>Algo para cada momento.</h3>
+              <p>{categories.map((category) => category.name).join(" · ")}</p>
+              <Link className="text-action" href="/ordenar">
+                Conocer opciones <ArrowRight size={17} />
+              </Link>
             </div>
-            <div>
-              <small>CREPAS Y POSTRES</small>
-              <strong>Crepa de frutos rojos</strong>
-              <span>$84</span>
+          </article>
+          <article className="discover-card landing-reveal">
+            <div className="discover-image plan-preview">
+              <Image
+                src="/floorplans/planta-baja.png"
+                alt="Croquis aprobado de la cafetería"
+                fill
+                sizes="(max-width: 760px) 100vw, 28vw"
+              />
             </div>
-          </div>
+            <div className="discover-copy">
+              <p className="eyebrow">RESERVA TU MESA</p>
+              <h3>Tu lugar en Lunario.</h3>
+              <p>Consulta el plano de mesas al continuar.</p>
+              <Link className="text-action" href="/ordenar">
+                Conocer opciones <ArrowRight size={17} />
+              </Link>
+            </div>
+          </article>
+          <article className="discover-card landing-reveal">
+            <div className="discover-image">
+              <Image
+                src="/media/coworking-1.jpg"
+                alt="Espacio de coworking de Lunario"
+                fill
+                sizes="(max-width: 760px) 100vw, 28vw"
+              />
+            </div>
+            <div className="discover-copy">
+              <p className="eyebrow">COWORKING</p>
+              <h3>Espacio para tus ideas.</h3>
+              <p>Conoce el plano y prepara tu solicitud.</p>
+              <Link className="text-action" href="/ordenar">
+                Conocer opciones <ArrowRight size={17} />
+              </Link>
+            </div>
+          </article>
         </div>
       </section>
-      <section className="cowork-band">
-        <div className="wrap split-section">
-          <div
-            className="cowork-band-photo"
-            role="img"
-            aria-label="Espacio de coworking fotografiado por Lunario"
-          />
+      <section className="order-mode landing-reveal" id="modalidad">
+        <div className="wrap order-mode-inner">
           <div>
-            <p className="eyebrow light">COFFEE TIME</p>
-            <h2>
-              Espacio para
-              <br />
-              hacer que pase.
-            </h2>
+            <p className="eyebrow light">A TU MANERA</p>
+            <h2>Para quedarte o para llevar.</h2>
             <p>
-              Cuatro cuartos para trabajar, estudiar o reunirte. Explora el
-              plano y las tarifas publicadas.
+              Consume en mesa o recoge tu pedido. Elige la modalidad al
+              continuar.
             </p>
-            <Link className="btn champagne" href="/coworking">
-              Ver coworking <ArrowRight size={17} />
-            </Link>
+          </div>
+          <Link className="btn champagne" href="/ordenar">
+            Ir a ordenar <ArrowRight size={17} />
+          </Link>
+        </div>
+      </section>
+      <section className="cowork-gallery wrap landing-reveal" id="coworking">
+        <div className="gallery-heading">
+          <div>
+            <p className="eyebrow">ESPACIOS DE COWORKING</p>
+            <h2>Ideas que encuentran su lugar.</h2>
+          </div>
+          <Link className="btn dark" href="/ordenar">
+            Conocer opciones <ArrowRight size={17} />
+          </Link>
+        </div>
+        <div
+          className="gallery-frame"
+          role="region"
+          aria-roledescription="carrusel"
+          aria-label="Fotografías de coworking"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+              event.preventDefault();
+              setPhoto(
+                (current) =>
+                  (current +
+                    (event.key === "ArrowRight" ? 1 : gallery.length - 1)) %
+                  gallery.length,
+              );
+            }
+          }}
+          onTouchStart={(event) => {
+            touch.current = event.touches[0].clientX;
+          }}
+          onTouchCancel={() => {
+            touch.current = null;
+          }}
+          onTouchEnd={(event) => {
+            if (touch.current === null) return;
+            const delta = event.changedTouches[0].clientX - touch.current;
+            if (Math.abs(delta) > 40)
+              setPhoto(
+                (current) =>
+                  (current + (delta < 0 ? 1 : gallery.length - 1)) %
+                  gallery.length,
+              );
+            touch.current = null;
+          }}
+        >
+          <Image
+            src={gallery[photo]}
+            alt={`Fotografía ${photo + 1} de espacios de coworking de Lunario`}
+            fill
+            sizes="(max-width: 760px) 100vw, 80vw"
+          />
+          <div className="gallery-controls">
+            <button
+              type="button"
+              onClick={() =>
+                setPhoto(
+                  (current) => (current + gallery.length - 1) % gallery.length,
+                )
+              }
+              aria-label="Fotografía anterior"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <span aria-live="polite" aria-atomic="true">
+              {photo + 1} / {gallery.length}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setPhoto((current) => (current + 1) % gallery.length)
+              }
+              aria-label="Fotografía siguiente"
+            >
+              <ArrowRight size={20} />
+            </button>
           </div>
         </div>
       </section>
-    </>
+      <section className="landing-close landing-reveal">
+        <div className="wrap">
+          <p className="eyebrow light">LUNARIO CAFÉ</p>
+          <h2>Tu próximo momento empieza aquí.</h2>
+          <Link className="btn champagne" href="/ordenar">
+            Ir a ordenar <ArrowRight size={17} />
+          </Link>
+        </div>
+      </section>
+    </main>
+  );
+}
+function OrderEntry() {
+  return (
+    <main className="order-entry">
+      <div className="wrap">
+        <p className="eyebrow">LUNARIO CAFÉ</p>
+        <h1>¿Qué te gustaría hacer?</h1>
+        <p className="lead muted">Elige cómo quieres vivir Lunario.</p>
+        <div className="entry-grid">
+          <Link href="/pedido" className="entry-card">
+            <div className="entry-image">
+              <Image
+                src="/media/cafe-hero.jpg"
+                alt="Café de Lunario"
+                fill
+                sizes="(max-width: 760px) 100vw, 33vw"
+              />
+            </div>
+            <div className="entry-copy">
+              <span>01</span>
+              <h2>Ordenar</h2>
+              <p>Para disfrutar en mesa o recoger.</p>
+              <ArrowRight size={22} />
+            </div>
+          </Link>
+          <Link href="/reservar" className="entry-card">
+            <div className="entry-image entry-plan">
+              <Image
+                src="/floorplans/planta-baja.png"
+                alt="Croquis de mesas de la cafetería"
+                fill
+                sizes="(max-width: 760px) 100vw, 33vw"
+              />
+            </div>
+            <div className="entry-copy">
+              <span>02</span>
+              <h2>Reservar mesa</h2>
+              <p>Consulta el plano y solicita tu mesa.</p>
+              <ArrowRight size={22} />
+            </div>
+          </Link>
+          <Link href="/coworking" className="entry-card">
+            <div className="entry-image">
+              <Image
+                src="/media/coworking-1.jpg"
+                alt="Espacio de coworking de Lunario"
+                fill
+                sizes="(max-width: 760px) 100vw, 33vw"
+              />
+            </div>
+            <div className="entry-copy">
+              <span>03</span>
+              <h2>Reservar coworking</h2>
+              <p>Explora los espacios para trabajar.</p>
+              <ArrowRight size={22} />
+            </div>
+          </Link>
+        </div>
+      </div>
+    </main>
   );
 }
 function ProductCard({
@@ -1117,8 +1315,8 @@ function Floorplan({
 }) {
   const source =
     kind === "table"
-      ? "/floorplans/planta-baja.svg"
-      : "/floorplans/segundo-piso.svg";
+      ? "/floorplans/planta-baja.png"
+      : "/floorplans/segundo-piso.png";
   const zones = kind === "table" ? tables : roomZones;
   const pointerStart = useRef(new Map<number, { x: number; y: number }>());
   const suppressTap = useRef(false);
@@ -1266,7 +1464,7 @@ function ChoicePage() {
         eyebrow="PEDIDO"
         title="¿Cómo lo prefieres?"
         description="Elige cómo disfrutar tu pedido."
-        back="/"
+        back="/ordenar"
       />
       <div className="wrap choice-grid">
         <button
@@ -1415,9 +1613,17 @@ function ReservationStart() {
   const draft = useDemoStore((s) => s.reservation);
   const set = useDemoStore((s) => s.setReservation);
   const router = useRouter();
-  const [missing, setMissing] = useState<"date" | "time" | "people" | null>(null);
+  const [missing, setMissing] = useState<"date" | "time" | "people" | null>(
+    null,
+  );
   function next() {
-    const field = !draft.date ? "date" : !draft.time ? "time" : !draft.people ? "people" : null;
+    const field = !draft.date
+      ? "date"
+      : !draft.time
+        ? "time"
+        : !draft.people
+          ? "people"
+          : null;
     if (field) {
       setMissing(field);
       return;
@@ -1431,7 +1637,7 @@ function ReservationStart() {
         eyebrow="RESERVAR MESA"
         title="Tu próxima visita"
         description="Indica cuándo deseas venir. La hora es una preferencia para la solicitud, no una disponibilidad confirmada."
-        back="/"
+        back="/ordenar"
       />
       <div className="wrap form-layout">
         <div className="form-panel">
@@ -1443,9 +1649,16 @@ function ReservationStart() {
               type="date"
               value={draft.date}
               aria-invalid={missing === "date"}
-              onChange={(e) => { set({ date: e.target.value }); setMissing(null); }}
+              onChange={(e) => {
+                set({ date: e.target.value });
+                setMissing(null);
+              }}
             />
-            {missing === "date" && <span className="field-error" role="alert">Selecciona una fecha.</span>}
+            {missing === "date" && (
+              <span className="field-error" role="alert">
+                Selecciona una fecha.
+              </span>
+            )}
           </label>
           <label>
             <span className="field-label">
@@ -1455,9 +1668,16 @@ function ReservationStart() {
               type="time"
               value={draft.time}
               aria-invalid={missing === "time"}
-              onChange={(e) => { set({ time: e.target.value }); setMissing(null); }}
+              onChange={(e) => {
+                set({ time: e.target.value });
+                setMissing(null);
+              }}
             />
-            {missing === "time" && <span className="field-error" role="alert">Selecciona una hora.</span>}
+            {missing === "time" && (
+              <span className="field-error" role="alert">
+                Selecciona una hora.
+              </span>
+            )}
           </label>
           <label>
             <span className="field-label">
@@ -1469,12 +1689,19 @@ function ReservationStart() {
               step="1"
               value={draft.people || ""}
               aria-invalid={missing === "people"}
-              onChange={(e) =>
-                { set({ people: Math.max(0, Math.floor(Number(e.target.value))) }); setMissing(null); }
-              }
+              onChange={(e) => {
+                set({
+                  people: Math.max(0, Math.floor(Number(e.target.value))),
+                });
+                setMissing(null);
+              }}
               placeholder="Número de personas"
             />
-            {missing === "people" && <span className="field-error" role="alert">Indica cuántas personas asistirán.</span>}
+            {missing === "people" && (
+              <span className="field-error" role="alert">
+                Indica cuántas personas asistirán.
+              </span>
+            )}
           </label>
           <button className="btn dark" onClick={next}>
             Elegir mesa <ArrowRight size={17} />
@@ -1774,10 +2001,9 @@ function CoworkingStart() {
         eyebrow="COFFEE TIME"
         title="Ideas con espacio."
         description="Explora los cuartos de coworking y señala el que prefieres para tu solicitud."
-        back="/"
+        back="/ordenar"
       />
       <div className="wrap gallery-grid">
-        {/* Producción: Lunario debe entregar o autorizar las fotografías definitivas para esta galería. */}
         {[1, 2, 3].map((n) => (
           <div key={n} className="gallery-image">
             <Image
@@ -1793,7 +2019,13 @@ function CoworkingStart() {
         <Floorplan
           kind="room"
           selected={d.roomId}
-          onSelect={(id) => { const nextRoom = rooms.find((r) => r.id === id); set({ roomId: id, people: nextRoom && d.people <= nextRoom.capacity ? d.people : 0 }); }}
+          onSelect={(id) => {
+            const nextRoom = rooms.find((r) => r.id === id);
+            set({
+              roomId: id,
+              people: nextRoom && d.people <= nextRoom.capacity ? d.people : 0,
+            });
+          }}
         />
         <aside className="selection-panel">
           <p className="eyebrow">CUARTOS</p>
@@ -1807,7 +2039,12 @@ function CoworkingStart() {
                 key={r.id}
                 aria-pressed={d.roomId === r.id}
                 className={d.roomId === r.id ? "selected" : ""}
-                onClick={() => set({ roomId: r.id, people: d.people <= r.capacity ? d.people : 0 })}
+                onClick={() =>
+                  set({
+                    roomId: r.id,
+                    people: d.people <= r.capacity ? d.people : 0,
+                  })
+                }
               >
                 <Laptop size={20} />
                 <span>{r.name}</span>
@@ -2357,6 +2594,7 @@ export default function DemoApp() {
   const ready = useHydrated();
   const routes: Record<string, React.ReactNode> = {
     "/": <Home />,
+    "/ordenar": <OrderEntry />,
     "/menu": <MenuView />,
     "/pedido": <ChoicePage />,
     "/pedido/recoger-hora": <PickupTimePage />,

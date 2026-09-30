@@ -2,6 +2,7 @@ import DemoApp from "@/components/DemoApp";
 
 export function generateStaticParams() {
   return [
+    { slug: ["ordenar"] },
     { slug: ["menu"] },
     { slug: ["pedido"] },
     { slug: ["pedido", "recoger-hora"] },
