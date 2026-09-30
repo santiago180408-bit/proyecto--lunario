@@ -1,4 +1,16 @@
-import DemoApp from "@/components/DemoApp";
+import Landing from "@/features/public/Landing";
+import { landingMetadata, structuredData } from "@/features/public/seo";
+export const metadata = landingMetadata;
 export default function Page() {
-  return <DemoApp />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(structuredData()).replace(/</g, "\\u003c"),
+        }}
+      />
+      <Landing />
+    </>
+  );
 }

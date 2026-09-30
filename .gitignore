@@ -5,3 +5,4 @@ dist/
 .research/
 *.tsbuildinfo
 .playwright-cli/
+.env*.local

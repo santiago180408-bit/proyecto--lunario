@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" fill="none">
+<defs><linearGradient id="gold" x1="40" y1="10" x2="240" y2="270" gradientUnits="userSpaceOnUse"><stop stop-color="#fff0cf"/><stop offset=".5" stop-color="#f2c78b"/><stop offset="1" stop-color="#a46c38"/></linearGradient><linearGradient id="room" x1="140" y1="86" x2="140" y2="215" gradientUnits="userSpaceOnUse"><stop stop-color="#b4783f"/><stop offset="1" stop-color="#22170e"/></linearGradient><linearGradient id="door" x1="85" y1="75" x2="128" y2="215" gradientUnits="userSpaceOnUse"><stop stop-color="#bd976a"/><stop offset="1" stop-color="#382719"/></linearGradient><radialGradient id="halo"><stop stop-color="#b17b4160"/><stop offset="1" stop-color="#0d0c0b00"/></radialGradient></defs>
+<circle cx="140" cy="140" r="138" fill="url(#halo)"/><circle cx="140" cy="140" r="122" fill="#0d0c0b" stroke="url(#gold)" stroke-width="2.5"/><circle cx="224" cy="51" r="8" fill="url(#gold)"/>
+<ellipse cx="142" cy="217" rx="67" ry="9" fill="#f2c78b" opacity=".12"/>
+<path d="M95 76h107v138H95Z" fill="url(#room)" stroke="url(#gold)" stroke-width="4"/><path d="M155 77v28" stroke="#f2c78b" stroke-width="2"/><path d="m143 113 12-13 12 13Z" fill="url(#gold)"/><ellipse cx="155" cy="117" rx="11" ry="3" fill="#fff0cf"/>
+<path d="M123 163h66m-58 0v44m50-44v44" stroke="#d5aa74" stroke-width="4"/><path d="m143 141 21 2 4 17h-25Z" fill="#2a2925" stroke="#bd976a" stroke-width="1.5"/><path d="M155 173q10-7 15 1l-2 21h-22v-12q0-8 9-10" fill="#ae8258"/><path d="M157 195v15m-10 0h20" stroke="#b99669" stroke-width="3"/>
+<path d="M94 65 124 87v143l-30-16Z" fill="url(#door)" stroke="url(#gold)" stroke-width="3"/><circle cx="115" cy="162" r="3" fill="#f2c78b"/>
+<path d="M188 190q-16-15-15-21 16 0 15 21Zm1-11q15-16 16-24-17 1-16 24Zm-1-15q-12-15-10-21 13 3 10 21Z" fill="#a9946f"/><path d="M187 182v19" stroke="#c6b38d" stroke-width="2"/><path d="M177 198h23l-4 14h-15Z" fill="#a27e56"/>
+</svg>
