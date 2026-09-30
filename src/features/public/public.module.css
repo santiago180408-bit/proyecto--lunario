@@ -1573,12 +1573,12 @@
 .entryCard[data-intent="mesa"] {
   --action-glow: #f8f5ec25;
   --action-light: #f8f5ec;
-  --entry-delay: 50ms;
+  --entry-delay: 500ms;
 }
 .entryCard[data-intent="coworking"] {
   --action-glow: #8b7a6a50;
   --action-light: #f2c78b;
-  --entry-delay: 100ms;
+  --entry-delay: 1000ms;
 }
 .entryCard::before {
   content: "";
@@ -1613,6 +1613,30 @@
   opacity: 0;
   box-shadow: 0 0 10px var(--action-light);
   pointer-events: none;
+}
+.entryPage[data-motion-ready] .entryCard[data-visible] .actionIcon img {
+  animation: actionArrival 650ms var(--ease) var(--entry-delay) both;
+}
+.entryPage[data-motion-ready] .entryCard[data-visible] .actionIcon::after {
+  animation: detailLight 650ms var(--ease) var(--entry-delay);
+}
+.entryPage[data-motion-ready] .entryCard[data-intent="mesa"][data-visible] .actionIcon img {
+  animation-name: tableArrival;
+}
+.entryPage[data-motion-ready] .entryCard[data-intent="coworking"][data-visible] .actionIcon img {
+  animation-name: workspaceArrival;
+}
+@keyframes actionArrival {
+  from { opacity: 0.3; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes tableArrival {
+  from { opacity: 0.3; transform: translateY(10px) scale(0.95); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes workspaceArrival {
+  from { opacity: 0.3; transform: translateX(-8px) scale(0.94); }
+  to { opacity: 1; transform: none; }
 }
 .entryPage[data-motion-ready] .entryCard[data-reveal] {
   opacity: 0;
@@ -1743,4 +1767,20 @@
   .clusterArrow {
     transform: none !important;
   }
+}
+.hero h1.heroBrand {
+  width: min(100%, 620px);
+  max-width: 620px;
+  line-height: 1;
+}
+.heroBrand img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@media (max-width: 600px) {
+  .hero h1.heroBrand { width: 100%; max-width: 360px; margin-bottom: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .entryPage .entryCard .actionIcon img { animation: none !important; transform: none !important; }
 }

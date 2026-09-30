@@ -1,5 +1,19 @@
 # Lunario — Landing + entrada /ordenar
 
+## Ajuste de logo, entrada y bebidas — 30/09/2026
+
+Corrección posterior solicitada: entrada más pausada, duración de iconos/brillo 650 ms y delays 0/500/1000 ms. Build y eventos reales comprobados a 390/1440: Pedir → mesa → coworking, aproximadamente 500 ms entre inicios; reduced motion sin animaciones. Estos tiempos sustituyen los originales indicados debajo.
+
+Vista previa comprobada: https://60065d34.proyecto--lunario.pages.dev/. PR #5: https://github.com/santiago180408-bit/proyecto--lunario/pull/5. Cloudflare completó el despliegue; logo, animaciones, apartados de bebidas y Matcha con leche comprobados públicamente, sin recursos fallidos ni errores de ejecución. No fusionado a main.
+
+- [x] Hero con el logo horizontal completo del paquete aprobado, sin reconstrucción; H1 accesible y header con isotipo.
+- [x] Iconos del gateway animados automáticamente una vez al entrar en viewport: Pedir, mesa, coworking; duración 420 ms, delays 0/90/180 ms. Eventos reales de animación confirman la secuencia; reduced motion elimina las animaciones.
+- [x] Menú dividido en Matcha, Lattes saborizados y Otras bebidas. Nueve fichas independientes con presentación y leche; precios base $55/$63 y recargos publicados $0/$10/$15/$20. Aplicación a estos productos autorizada expresamente en la petición actual.
+- [x] Configuración antigua conservada únicamente para compatibilidad con productos ya guardados en carrito; no aparece como ficha del menú.
+- [x] Build/TypeScript y 595 configuraciones de precios pasan. Chromium a 390/430/768/1024/1440 sin overflow ni errores de consola; Matcha frío con avena $83 + taro mediano con almendras $70 = $153, persistente tras recargar.
+
+Capturas: `output/playwright/logo-landing-{390,430,768,1024,1440}.png`, `logo-ordenar-{390,430,768,1024,1440}.png`, `matcha-options-390.png`, `separate-drinks-{390,1440}.png`. Este ajuste sustituye el nombre textual del hero y los delays anteriores; los checks del addendum previo permanecen como historial.
+
 ## Addendum final de cierre — vigente
 
 Este apartado tiene precedencia sobre los criterios históricos de la fase Landing que aparecen debajo.
