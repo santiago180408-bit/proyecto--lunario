@@ -9,6 +9,7 @@ export type OptionGroup = {
   id: string;
   label: string;
   required: boolean;
+  onlyWhen?: { groupId: string; optionId: string };
   options: Option[];
 };
 export type Product = {
@@ -517,6 +518,7 @@ export const products: Product[] = [
   ).map(([name, price], i) =>
     fixed(`waffle-${i}`, "postres", `Waffle ${name.toLowerCase()}`, price),
   ),
+  fixed("crepizza", "postres", "Crepizza", 105, "Puré de tomate, queso manchego, mozzarella, morrón, jalapeños, cebolla morada y finas hierbas; cobertura sujeta a consulta"),
   ...[
     "Trufa",
     "Limón",
@@ -682,6 +684,86 @@ export const products: Product[] = [
     ]),
   ),
 ];
+// Only associations confirmed by Menu_Lunario_organizado.docx are selectable.
+// Proteins/sauces, crepe bases and waffle batter marked for confirmation stay hidden.
+for (const product of products) {
+  const add = (...groups: OptionGroup[]) =>
+    product.optionGroups.push(...groups);
+  if (
+    [
+      "capuchino",
+      "latte",
+      "caramel",
+      "mocha",
+      "nutella",
+      "cream-brulett",
+      "latte-bombon",
+      "capuchino-saborizado",
+    ].includes(product.id)
+  ) {
+    add(
+      group(
+        `${product.id}-milk`,
+        "Leche",
+        [
+          ["Entera", 0],
+          ["Deslactosada", 10],
+          ["Almendras", 15],
+          ["Avena", 20],
+        ],
+        "delta",
+      ),
+    );
+  }
+  if (product.optionGroups.some((g) => g.id === `${product.id}-presentacion`))
+    add({
+      ...choice(`${product.id}-drink`, "Bebida del paquete", ["Café", "Té"]),
+      onlyWhen: {
+        groupId: `${product.id}-presentacion`,
+        optionId: `${product.id}-presentacion-1`,
+      },
+    });
+  if (product.id === "menu-kids")
+    add(choice("kids-drink", "Bebida", ["Jugo", "Té"]));
+  if (product.id === "huevos")
+    add(
+      choice("huevos-style", "Preparación", [
+        "Tocino",
+        "Jamón",
+        "Rancheros",
+        "Divorciados",
+      ]),
+    );
+  if (product.id === "omelette")
+    add(
+      choice("omelette-filling", "Relleno", [
+        "Espinaca con queso manchego",
+        "Champiñones con queso manchego",
+      ]),
+    );
+  if (product.categoryId === "emparedados")
+    add({
+      ...group(
+        `${product.id}-extra`,
+        "Extras",
+        [
+          ["Sin extra", 0],
+          ["Papas fritas", 45],
+        ],
+        "delta",
+      ),
+      required: false,
+    });
+
+}
+export const visibleGroups = (
+  product: Product,
+  selections: Record<string, string>,
+) =>
+  product.optionGroups.filter(
+    (g) =>
+      !g.onlyWhen || selections[g.onlyWhen.groupId] === g.onlyWhen.optionId,
+  );
 export const formatMoney = (value: number) =>
   new Intl.NumberFormat("es-MX", {
     style: "currency",
@@ -692,13 +774,14 @@ export function unitPrice(
   product: Product,
   selections: Record<string, string>,
 ) {
-  let price = product.basePrice ?? 0;
-  for (const g of product.optionGroups) {
+  let price = product.basePrice ?? startingPrice(product);
+  let extras = 0;
+  for (const g of visibleGroups(product, selections)) {
     const o = g.options.find((o) => o.id === selections[g.id]);
     if (o?.priceMode === "absolute") price = o.price;
-    if (o?.priceMode === "delta") price += o.price;
+    if (o?.priceMode === "delta") extras += o.price;
   }
-  return price;
+  return price + extras;
 }
 export function startingPrice(product: Product) {
   const p = product.optionGroups.flatMap((g) =>

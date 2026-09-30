@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -12,24 +13,46 @@ import {
   Plus,
   ShoppingBag,
   X,
-  RotateCcw,
   CreditCard,
   Banknote,
+  Coffee,
+  CalendarDays,
+  Laptop,
+  Utensils,
+  PackageCheck,
+  Pencil,
+  Trash2,
+  Users,
+  Clock,
+  Leaf,
+  CakeSlice,
+  Sandwich,
 } from "lucide-react";
 import {
   categories,
   formatMoney,
+  visibleGroups,
   products,
   startingPrice,
   unitPrice,
   type Product,
 } from "@/data/menu";
-import { periods, rates, rooms, type Period } from "@/data/coworking";
-import { useDemoStore, type CartItem, type RequestKind } from "@/store/demo";
+import {
+  periods,
+  rates,
+  rooms,
+} from "@/data/coworking";
+import { paymentMethods } from "@/data/payment";
+import {
+  useDemoStore,
+  type CartItem,
+  type RequestKind,
+} from "@/store/demo";
+import Floorplan from "@/features/floorplans/Floorplan";
 
 const productById = (id: string) => products.find((p) => p.id === id);
 const selectedLabels = (p: Product, selections: Record<string, string>) =>
-  p.optionGroups
+  visibleGroups(p, selections)
     .map((g) => g.options.find((o) => o.id === selections[g.id])?.label)
     .filter(Boolean)
     .join(" · ");
@@ -39,6 +62,7 @@ const cartTotal = (cart: CartItem[]) =>
     return sum + (p ? unitPrice(p, item.selections) * item.quantity : 0);
   }, 0);
 const makeLineId = () => crypto.randomUUID();
+let dialogLocks = 0;
 function useHydrated() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -64,12 +88,35 @@ function StepHeader({
   description?: string;
   back?: string;
 }) {
+  const path = usePathname().replace(/\/+$/, "");
+  const steps = path.startsWith("/reservar")
+    ? ["Tu visita", "Mesa", "Revisión"]
+    : path.startsWith("/coworking")
+      ? ["Espacio", "Tarifa y fecha", "Revisión"]
+      : path.startsWith("/pedido")
+        ? ["Modalidad", "Tu pedido", "Revisión"]
+        : [];
+  const current = path.endsWith("revision")
+    ? 2
+    : path.endsWith("mesa") || path.endsWith("configurar")
+      ? 1
+      : 0;
   return (
     <div className="step-header wrap">
       {back && <GoBack href={back} />}
       <p className="eyebrow">{eyebrow}</p>
       <h1>{title}</h1>
       {description && <p className="muted lead">{description}</p>}
+      {steps.length > 0 && (
+        <ol className="flow-progress" aria-label="Progreso">
+          {steps.map((step, i) => (
+            <li key={step} aria-current={i === current ? "step" : undefined}>
+              <span>{i < current ? <Check size={12} /> : i + 1}</span>
+              {step}
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }
@@ -86,6 +133,8 @@ function Dialog({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const returnTo = useRef<HTMLElement | null>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     returnTo.current = document.activeElement as HTMLElement;
     const root = ref.current;
@@ -95,7 +144,7 @@ function Dialog({
     const key = (e: KeyboardEvent) => {
       const dialogs = document.querySelectorAll(".dialog");
       if (dialogs[dialogs.length - 1] !== root) return;
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") closeRef.current();
       if (e.key === "Tab" && root) {
         const nodes = [
           ...root.querySelectorAll<HTMLElement>(
@@ -115,14 +164,16 @@ function Dialog({
       }
     };
     document.addEventListener("keydown", key);
+    dialogLocks += 1;
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", key);
-      document.body.style.overflow = "";
+      dialogLocks -= 1;
+      if (dialogLocks === 0) document.body.style.overflow = "";
       returnTo.current?.focus();
     };
-  }, [onClose]);
-  return (
+  }, []);
+  return createPortal(
     <div
       className="dialog-scrim"
       onMouseDown={(e) => {
@@ -145,18 +196,58 @@ function Dialog({
         </button>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 function Header() {
   const path = usePathname();
   const cart = useDemoStore((s) => s.cart);
+  const orderMode = useDemoStore((s) => s.orderMode);
+  const count = cart.reduce((n, item) => n + item.quantity, 0);
+  const showCart =
+    count > 0 &&
+    (path === "/" || path.startsWith("/menu") || path.startsWith("/pedido"));
+  const [toast, setToast] = useState("");
+  const [orderReviewActionOpen, setOrderReviewActionOpen] = useState(false);
+  const isOrderReview = path.replace(/\/+$/, "") === "/pedido/revision";
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const notify = (event: Event) => {
+      const action = (event as CustomEvent<{ action?: string }>).detail?.action;
+      setToast(
+        action === "added" ? "Agregado al pedido" : "Pedido actualizado",
+      );
+      clearTimeout(timer);
+      timer = setTimeout(() => setToast(""), 2200);
+    };
+    window.addEventListener("lunario:cart", notify);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("lunario:cart", notify);
+    };
+  }, []);
+  useEffect(() => {
+    document.body.classList.toggle("has-cart", showCart);
+    return () => document.body.classList.remove("has-cart");
+  }, [showCart]);
   const [menu, setMenu] = useState(false);
+  const [pastHero, setPastHero] = useState(false);
+  useEffect(() => {
+    if (path !== "/") return;
+    const update = () =>
+      setPastHero(window.scrollY > Math.max(300, window.innerHeight * 0.7));
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, [path]);
   const [cartOpen, setCartOpen] = useState(false);
   useEffect(() => setMenu(false), [path]);
   return (
     <>
-      <header className={`site-header ${path === "/" ? "on-hero" : ""}`}>
+      <header
+        className={`site-header ${path === "/" ? "home-header" : ""} ${path === "/" && !pastHero ? "on-hero" : ""}`}
+      >
         <div className="wrap header-inner">
           <Link
             href="/"
@@ -184,6 +275,16 @@ function Header() {
             />
           </Link>
           <nav className="desktop-nav" aria-label="Principal">
+            {count > 0 && (
+              <button
+                className="icon-btn"
+                aria-label="Abrir carrito"
+                onClick={() => setCartOpen(true)}
+              >
+                <ShoppingBag size={20} />
+                <span className="cart-badge">{count}</span>
+              </button>
+            )}
             <Link href="/menu">Menú</Link>
             <Link href="/reservar">Reservar</Link>
             <Link href="/coworking">Coworking</Link>
@@ -194,34 +295,85 @@ function Header() {
           <div className="mobile-actions">
             {cart.length > 0 && (
               <button
-                aria-label={`Abrir carrito, ${cart.length} productos`}
+                aria-label={`Abrir carrito, ${count} ${count === 1 ? "producto" : "productos"}`}
                 className="icon-btn"
                 onClick={() => setCartOpen(true)}
               >
                 <ShoppingBag size={22} />
-                <span className="cart-badge">{cart.length}</span>
+                <span key={count} className="cart-badge">
+                  {count}
+                </span>
               </button>
             )}
             <button
               className="icon-btn"
+              type="button"
               aria-label={menu ? "Cerrar menú" : "Abrir menú"}
               aria-expanded={menu}
               onClick={() => setMenu(!menu)}
             >
-              {menu ? <X /> : <MenuIcon />}
+              <span
+                className={`menu-icon ${menu ? "is-open" : ""}`}
+                aria-hidden="true"
+              >
+                <MenuIcon className="menu-glyph" />
+                <X className="close-glyph" />
+              </span>
             </button>
           </div>
         </div>
-        {menu && (
-          <nav className="mobile-nav" aria-label="Menú móvil">
-            <Link href="/">Inicio</Link>
-            <Link href="/menu">Menú</Link>
-            <Link href="/reservar">Reservar</Link>
-            <Link href="/coworking">Coworking</Link>
-            <Link href="/pedido">Pedir</Link>
-          </nav>
-        )}
+        <nav
+          className={`mobile-nav ${menu ? "is-open" : ""}`}
+          aria-label="Menú móvil"
+          aria-hidden={!menu}
+          inert={!menu}
+        >
+          <Link href="/">Inicio</Link>
+          <Link href="/menu">Menú</Link>
+          <Link href="/reservar">Reservar</Link>
+          <Link href="/coworking">Coworking</Link>
+          <Link href="/pedido">Pedir</Link>
+        </nav>
       </header>
+      {showCart && !cartOpen && !menu && (
+        <button
+          className="floating-cart"
+          onClick={() =>
+            isOrderReview ? setOrderReviewActionOpen(true) : setCartOpen(true)
+          }
+          aria-label={`${isOrderReview ? "Enviar solicitud" : "Ver pedido"}, ${count} ${count === 1 ? "producto" : "productos"}, ${formatMoney(cartTotal(cart))}`}
+        >
+          <span className="cart-icon">
+            <ShoppingBag size={20} />
+            <b key={count}>{count}</b>
+          </span>
+          <span>
+            <small>
+              {orderMode === "pickup" ? "Para recoger" : "Tu pedido"}
+            </small>
+            <strong>{formatMoney(cartTotal(cart))}</strong>
+
+          </span>
+          <span className="cart-cta">
+            {isOrderReview ? "Enviar solicitud" : "Ver pedido"}{" "}
+            <ArrowRight size={18} />
+          </span>
+        </button>
+      )}
+      {orderReviewActionOpen && (
+        <AccessDialog
+          kind="order"
+          onClose={() => setOrderReviewActionOpen(false)}
+        />
+      )}
+      <div className="toast" role="status">
+        {toast && (
+          <span>
+            <Check size={16} />
+            {toast}
+          </span>
+        )}
+      </div>
       {cartOpen && <CartDialog onClose={() => setCartOpen(false)} />}
     </>
   );
@@ -255,7 +407,7 @@ function Footer() {
 }
 function Home() {
   return (
-    <>
+    <main>
       <section className="hero">
         <div
           className="hero-photo"
@@ -266,9 +418,9 @@ function Home() {
         <div className="wrap hero-content">
           <p className="eyebrow light">CAFÉ · ENCUENTROS · IDEAS</p>
           <h1>
-            Un momento
+            Buen café para
             <br />
-            <em>para quedarte.</em>
+            <em>grandes ideas.</em>
           </h1>
           <p>Explora la experiencia de Lunario Café.</p>
           <div className="hero-actions">
@@ -326,21 +478,14 @@ function Home() {
             </Link>
           </div>
           <div className="menu-preview">
-            <div>
-              <small>BEBIDAS CON CAFÉ</small>
-              <strong>Café latte</strong>
-              <span>Desde $52</span>
-            </div>
-            <div>
-              <small>DESAYUNOS</small>
-              <strong>Chilaquiles</strong>
-              <span>Desde $85</span>
-            </div>
-            <div>
-              <small>CREPAS Y POSTRES</small>
-              <strong>Crepa de frutos rojos</strong>
-              <span>$84</span>
-            </div>
+            {["latte", "chilaquiles", "crepa-dulce-8"].map((id) => {
+              const product = productById(id)!;
+              return <div key={id}>
+                <small>{categories.find((category) => category.id === product.categoryId)?.name}</small>
+                <strong>{product.name}</strong>
+                <span>{product.pricingType === "variant" ? "Desde " : ""}{formatMoney(startingPrice(product))}</span>
+              </div>;
+            })}
           </div>
         </div>
       </section>
@@ -368,7 +513,7 @@ function Home() {
           </div>
         </div>
       </section>
-    </>
+    </main>
   );
 }
 function ProductCard({
@@ -380,9 +525,28 @@ function ProductCard({
   transactionalMode: boolean;
   onOpen: (p: Product) => void;
 }) {
+  const Symbol =
+    {
+      cafe: Coffee,
+      bebidas: Leaf,
+      desayunos: Utensils,
+      postres: CakeSlice,
+      emparedados: Sandwich,
+      antojitos: Utensils,
+    }[product.categoryId] ?? Coffee;
   return (
-    <article className="product-card">
+    <button
+      type="button"
+      className="product-card"
+      onClick={() => onOpen(product)}
+    >
       <div>
+        <span
+          className={`product-symbol tone-${product.categoryId}`}
+          aria-hidden="true"
+        >
+          <Symbol size={20} />
+        </span>
         <p className="product-category">
           {categories.find((c) => c.id === product.categoryId)?.name}
         </p>
@@ -400,22 +564,23 @@ function ProductCard({
             : ""}
           {formatMoney(startingPrice(product))}
         </strong>
-        <button className="text-action" onClick={() => onOpen(product)}>
+        <span className="text-action">
           {transactionalMode ? "Ver opciones" : "Ver detalle"}{" "}
           <ArrowRight size={16} />
-        </button>
+        </span>
       </div>
-    </article>
+    </button>
   );
 }
 function MenuView() {
   const mode = useDemoStore((s) => s.orderMode);
   const cart = useDemoStore((s) => s.cart);
   const [active, setActive] = useState<string>("cafe");
+  const visible = products.filter((p) => p.enabledInDemo && p.categoryId === active);
   const [open, setOpen] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   return (
-    <>
+    <main>
       <StepHeader
         eyebrow="MENÚ LUNARIO"
         title="La carta"
@@ -426,7 +591,14 @@ function MenuView() {
           {categories.map((c) => (
             <button
               key={c.id}
-              onClick={() => setActive(c.id)}
+              onClick={(e) => {
+                setActive(c.id);
+                e.currentTarget.scrollIntoView({
+                  block: "nearest",
+                  inline: "center",
+                  behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+                });
+              }}
               className={active === c.id ? "active" : ""}
               aria-current={active === c.id ? "true" : undefined}
             >
@@ -435,12 +607,12 @@ function MenuView() {
           ))}
         </nav>
       </div>
-      <main className="wrap menu-content">
+      <div className="wrap menu-content">
         <div className="menu-topline">
           <div>
-            <p className="eyebrow">
+            <h2 className="eyebrow">
               {categories.find((c) => c.id === active)?.name}
-            </p>
+            </h2>
             <p className="muted">Precios en pesos mexicanos.</p>
           </div>
           {cart.length > 0 && (
@@ -449,24 +621,27 @@ function MenuView() {
             </button>
           )}
         </div>
+        {visible.length === 0 && (
+          <p className="empty-state">
+            No encontramos productos. Elige otra categoría.
+          </p>
+        )}
         <div className="product-grid">
-          {products
-            .filter((p) => p.categoryId === active && p.enabledInDemo)
-            .map((p) => (
-              <ProductCard
-                key={p.id}
-                product={p}
-                transactionalMode={!!mode}
-                onOpen={setOpen}
-              />
-            ))}
+          {visible.map((p) => (
+            <ProductCard
+              key={p.id}
+              product={p}
+              transactionalMode={!!mode}
+              onOpen={setOpen}
+            />
+          ))}
         </div>
-      </main>
+      </div>
       {open && (
         <ProductConfigurator product={open} onClose={() => setOpen(null)} />
       )}{" "}
       {cartOpen && <CartDialog onClose={() => setCartOpen(false)} />}
-    </>
+    </main>
   );
 }
 function QuantityStepper({
@@ -514,19 +689,17 @@ function ProductConfigurator({
     editing?.selections ?? {},
   );
   const [quantity, setQuantity] = useState(editing?.quantity ?? 1);
-  const [error, setError] = useState("");
+  const [missingGroup, setMissingGroup] = useState<string | null>(null);
   const price = unitPrice(product, selections);
   function commit() {
-    const missing = product.optionGroups.find(
+    const missing = visibleGroups(product, selections).find(
       (g) => g.required && !selections[g.id],
     );
     if (missing) {
-      setError(`Elige ${missing.label.toLowerCase()}.`);
-      return;
-    }
-    if (!mode && !editing) {
-      onClose();
-      router.push("/pedido");
+      setMissingGroup(missing.id);
+      document
+        .querySelector<HTMLInputElement>(`[data-group="${missing.id}"] input`)
+        ?.focus();
       return;
     }
     const line: CartItem = {
@@ -537,7 +710,9 @@ function ProductConfigurator({
     };
     if (editing) update(editing.lineId, line);
     else add(line);
+    window.dispatchEvent(new CustomEvent("lunario:cart", { detail: { action: editing ? "updated" : "added" } }));
     onClose();
+    if (!mode && !editing) router.push("/pedido");
   }
   return (
     <Dialog title={product.name} onClose={onClose} className="product-dialog">
@@ -545,8 +720,8 @@ function ProductConfigurator({
       <h2>{product.name}</h2>
       {product.description && <p className="muted">{product.description}</p>}
       <div className="config-options">
-        {product.optionGroups.map((g) => (
-          <fieldset key={g.id}>
+        {visibleGroups(product, selections).map((g) => (
+          <fieldset key={g.id} data-group={g.id} aria-describedby={missingGroup === g.id ? `option-error-${g.id}` : undefined}>
             <legend>
               {g.label} {g.required && <span aria-hidden="true">*</span>}
             </legend>
@@ -564,11 +739,11 @@ function ProductConfigurator({
                       checked={selections[g.id] === o.id}
                       onChange={() => {
                         setSelections((s) => ({ ...s, [g.id]: o.id }));
-                        setError("");
+                        setMissingGroup(null);
                       }}
                     />
                     <span>{o.label}</span>
-                    {o.priceMode !== "none" && (
+                    {o.priceMode !== "none" && o.price !== 0 && (
                       <strong>
                         {o.priceMode === "delta" && "+"}
                         {formatMoney(o.price)}
@@ -577,14 +752,10 @@ function ProductConfigurator({
                   </label>
                 ))}
             </div>
+            {missingGroup === g.id && <p id={`option-error-${g.id}`} className="field-error" role="alert">Selecciona {g.label.toLowerCase()}.</p>}
           </fieldset>
         ))}
       </div>
-      {error && (
-        <p className="field-error" role="alert">
-          {error}
-        </p>
-      )}
       <div className="config-footer">
         <QuantityStepper value={quantity} onChange={setQuantity} />
         <div>
@@ -599,7 +770,7 @@ function ProductConfigurator({
           {editing
             ? "Guardar cambios"
             : mode
-              ? "Agregar al carrito"
+              ? `Agregar · ${formatMoney((price || startingPrice(product)) * quantity)}`
               : "Elegir modalidad"}{" "}
           <ArrowRight size={16} />
         </button>
@@ -617,6 +788,7 @@ function CartDialog({
   const cart = useDemoStore((s) => s.cart);
   const setQuantity = useDemoStore((s) => s.setQuantity);
   const remove = useDemoStore((s) => s.removeItem);
+  const orderMode = useDemoStore((s) => s.orderMode);
   const router = useRouter();
   const [editing, setEditing] = useState<CartItem | null>(null);
   const editProduct = editing && productById(editing.productId);
@@ -629,8 +801,8 @@ function CartDialog({
           <div className="empty-state">
             <ShoppingBag size={32} />
             <p>Tu carrito está vacío.</p>
-            <button className="btn dark" onClick={onClose}>
-              Volver al menú
+            <button className="btn dark" onClick={() => { onClose(); router.push("/menu"); }}>
+              Ver menú
             </button>
           </div>
         ) : (
@@ -653,13 +825,13 @@ function CartDialog({
                             onEdit ? onEdit(p, item) : setEditing(item)
                           }
                         >
-                          Editar
+                          <Pencil size={15} /> Editar
                         </button>
                         <button
                           className="text-action"
                           onClick={() => remove(item.lineId)}
                         >
-                          Eliminar
+                          <Trash2 size={15} /> Eliminar
                         </button>
                       </div>
                     </div>
@@ -687,13 +859,16 @@ function CartDialog({
                 className="btn dark full"
                 onClick={() => {
                   onClose();
-                  router.push("/pedido/revision");
+                  router.push(!orderMode ? "/pedido" : orderMode === "dineIn" && !useDemoStore.getState().orderTableId ? "/pedido/mesa" : "/pedido/revision");
                 }}
               >
                 Revisar pedido <ArrowRight size={16} />
               </button>
               <button className="text-action" onClick={onClose}>
                 Volver al menú
+              </button>
+              <button className="text-action" onClick={() => { onClose(); router.push("/pedido"); }}>
+                Cambiar modalidad
               </button>
             </div>
           </>
@@ -710,269 +885,6 @@ function CartDialog({
   );
 }
 
-const tables = [
-  {
-    id: "table-a",
-    x: 187,
-    y: 255,
-    w: 106,
-    h: 65,
-    label: "junto a la pared superior izquierda",
-  },
-  {
-    id: "table-b",
-    x: 187,
-    y: 354,
-    w: 106,
-    h: 63,
-    label: "en la zona superior izquierda",
-  },
-  {
-    id: "table-c",
-    x: 190,
-    y: 526,
-    w: 109,
-    h: 62,
-    label: "junto al pasillo, a la izquierda",
-  },
-  {
-    id: "table-d",
-    x: 194,
-    y: 589,
-    w: 104,
-    h: 65,
-    label: "junto a las escaleras",
-  },
-  {
-    id: "table-e",
-    x: 218,
-    y: 979,
-    w: 132,
-    h: 70,
-    label: "debajo de las escaleras",
-  },
-  {
-    id: "table-f",
-    x: 221,
-    y: 1104,
-    w: 123,
-    h: 77,
-    label: "en la zona central izquierda",
-  },
-  {
-    id: "table-g",
-    x: 191,
-    y: 1261,
-    w: 161,
-    h: 90,
-    label: "cerca de la entrada, a la izquierda",
-  },
-  {
-    id: "table-h",
-    x: 757,
-    y: 983,
-    w: 162,
-    h: 61,
-    label: "debajo de los baños",
-  },
-  {
-    id: "table-i",
-    x: 760,
-    y: 1088,
-    w: 154,
-    h: 100,
-    label: "en la zona central derecha",
-  },
-  {
-    id: "table-j",
-    x: 810,
-    y: 1265,
-    w: 165,
-    h: 80,
-    label: "cerca de la entrada, a la derecha",
-  },
-];
-const roomZones = [
-  { id: "room-01", x: 112, y: 193, w: 510, h: 340 },
-  { id: "room-02", x: 112, y: 537, w: 510, h: 357 },
-  { id: "room-03", x: 724, y: 753, w: 362, h: 364 },
-  { id: "room-04", x: 113, y: 1122, w: 973, h: 304 },
-];
-function Floorplan({
-  kind,
-  selected,
-  onSelect,
-}: {
-  kind: "table" | "room";
-  selected: string | null;
-  onSelect: (id: string) => void;
-}) {
-  const stage = useRef<HTMLDivElement>(null);
-  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const lastPinch = useRef<number | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const source =
-    kind === "table"
-      ? "/floorplans/planta-baja.svg"
-      : "/floorplans/segundo-piso.svg";
-  const zones = kind === "table" ? tables : roomZones;
-  function clamp(z: number, x: number, y: number) {
-    const el = stage.current;
-    if (!el) return { x: 0, y: 0 };
-    const w = el.clientWidth,
-      h = el.clientHeight;
-    return {
-      x: Math.min(0, Math.max(w - w * z, x)),
-      y: Math.min(0, Math.max(h - h * z, y)),
-    };
-  }
-  function changeZoom(next: number) {
-    const z = Math.min(2.5, Math.max(1, next));
-    setZoom(z);
-    setPan((p) => clamp(z, p.x, p.y));
-  }
-  function onMove(e: React.PointerEvent) {
-    const prev = pointers.current.get(e.pointerId);
-    if (!prev) return;
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    const vals = [...pointers.current.values()];
-    if (vals.length === 2) {
-      const dist = Math.hypot(vals[0].x - vals[1].x, vals[0].y - vals[1].y);
-      if (lastPinch.current) {
-        const next = Math.min(
-          2.5,
-          Math.max(1, (zoom * dist) / lastPinch.current),
-        );
-        setZoom(next);
-        setPan((p) => clamp(next, p.x, p.y));
-      }
-      lastPinch.current = dist;
-    } else if (vals.length === 1 && zoom > 1) {
-      setPan((p) =>
-        clamp(zoom, p.x + e.clientX - prev.x, p.y + e.clientY - prev.y),
-      );
-    }
-  }
-  function onEnd(e: React.PointerEvent) {
-    pointers.current.delete(e.pointerId);
-    lastPinch.current = null;
-  }
-  return (
-    <div className="plan-shell">
-      <div className="plan-toolbar" aria-label="Controles del plano">
-        <button
-          aria-label="Acercar plano"
-          onClick={() => changeZoom(zoom + 0.25)}
-        >
-          <Plus size={18} />
-        </button>
-        <button
-          aria-label="Alejar plano"
-          onClick={() => changeZoom(zoom - 0.25)}
-        >
-          <Minus size={18} />
-        </button>
-        <button
-          aria-label="Restablecer plano"
-          onClick={() => {
-            setZoom(1);
-            setPan({ x: 0, y: 0 });
-          }}
-        >
-          <RotateCcw size={17} />
-        </button>
-      </div>
-      <div
-        className="plan-stage"
-        ref={stage}
-        onPointerDown={(e) => {
-          pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        }}
-        onPointerMove={onMove}
-        onPointerUp={onEnd}
-        onPointerCancel={onEnd}
-      >
-        <div
-          className="plan-scaled"
-          style={{
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          }}
-        >
-          <Image
-            src={source}
-            alt={
-              kind === "table"
-                ? "Plano digital de planta baja con mesas, pasillo, barra, cocina, baños, escaleras y entrada"
-                : "Plano digital de segundo piso con cuatro cuartos, entradas, baño y escaleras"
-            }
-            width={1200}
-            height={1600}
-            unoptimized
-          />
-          <svg
-            className="plan-overlay"
-            viewBox="0 0 1200 1600"
-            aria-label={
-              kind === "table"
-                ? "Seleccionar mesa en el plano"
-                : "Seleccionar cuarto en el plano"
-            }
-          >
-            {zones.map((z) => (
-              <rect
-                key={z.id}
-                x={z.x}
-                y={z.y}
-                width={z.w}
-                height={z.h}
-                rx="8"
-                tabIndex={0}
-                role="button"
-                aria-label={
-                  kind === "table"
-                    ? `Seleccionar mesa ${"label" in z ? z.label : ""}`
-                    : `Seleccionar ${rooms.find((r) => r.id === z.id)?.name}`
-                }
-                aria-pressed={selected === z.id}
-                className={`plan-hotspot ${selected === z.id ? "selected" : ""}`}
-                onClick={() => onSelect(z.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onSelect(z.id);
-                  }
-                }}
-              />
-            ))}
-          </svg>
-        </div>
-      </div>
-      <p className="plan-caption">
-        Plano orientativo sin escala. Selecciona{" "}
-        {kind === "table" ? "una mesa" : "un cuarto"}; la selección se marca en
-        dorado.
-      </p>
-      {kind === "table" && (
-        <div className="table-options">
-          <p className="eyebrow">ELEGIR POR UBICACIÓN</p>
-          <div>
-            {tables.map((t) => (
-              <button
-                key={t.id}
-                aria-pressed={selected === t.id}
-                className={selected === t.id ? "selected" : ""}
-                onClick={() => onSelect(t.id)}
-              >
-                Mesa {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 function Guard({
   valid,
   to,
@@ -995,11 +907,6 @@ function Guard({
 function ChoicePage() {
   const router = useRouter();
   const set = useDemoStore((s) => s.setOrderMode);
-  const request = useDemoStore((s) => s.request);
-  const reset = useDemoStore((s) => s.resetFlow);
-  useEffect(() => {
-    if (request?.kind === "order" && request.status === "confirmed") reset("order");
-  }, [request, reset]);
   return (
     <main>
       <StepHeader
@@ -1016,7 +923,9 @@ function ChoicePage() {
             router.push("/pedido/mesa");
           }}
         >
-          <span className="choice-num">01</span>
+          <span className="icon-holder warm">
+            <Utensils />
+          </span>
           <h2>En Lunario</h2>
           <p>Selecciona una mesa y elige desde la carta.</p>
           <span className="choice-arrow">
@@ -1030,7 +939,9 @@ function ChoicePage() {
             router.push("/menu");
           }}
         >
-          <span className="choice-num">02</span>
+          <span className="icon-holder sage">
+            <PackageCheck />
+          </span>
           <h2>Para recoger</h2>
           <p>Explora el menú y prepara tu pedido.</p>
           <span className="choice-arrow">
@@ -1079,20 +990,23 @@ function OrderTable() {
 function ReservationStart() {
   const draft = useDemoStore((s) => s.reservation);
   const set = useDemoStore((s) => s.setReservation);
-  const request = useDemoStore((s) => s.request);
-  const reset = useDemoStore((s) => s.resetFlow);
-  useEffect(() => {
-    if (request?.kind === "tableReservation" && request.status === "confirmed")
-      reset("tableReservation");
-  }, [request, reset]);
   const router = useRouter();
-  const [error, setError] = useState("");
+  const [missing, setMissing] = useState<"date" | "time" | "people" | null>(
+    null,
+  );
   function next() {
-    if (!draft.date || !draft.time || !draft.people) {
-      setError("Completa fecha, hora y personas.");
+    const field = !draft.date
+      ? "date"
+      : !draft.time
+        ? "time"
+        : !draft.people
+          ? "people"
+          : null;
+    if (field) {
+      setMissing(field);
       return;
     }
-    setError("");
+    setMissing(null);
     router.push("/reservar/mesa");
   }
   return (
@@ -1106,39 +1020,67 @@ function ReservationStart() {
       <div className="wrap form-layout">
         <div className="form-panel">
           <label>
-            Fecha
+            <span className="field-label">
+              <CalendarDays size={16} /> Fecha
+            </span>
             <input
               type="date"
               value={draft.date}
-              onChange={(e) => set({ date: e.target.value })}
+              aria-invalid={missing === "date"}
+              onChange={(e) => {
+                set({ date: e.target.value });
+                setMissing(null);
+              }}
             />
+            {missing === "date" && (
+              <span className="field-error" role="alert">
+                Selecciona una fecha.
+              </span>
+            )}
           </label>
           <label>
-            Hora
+            <span className="field-label">
+              <Clock size={16} /> Hora
+            </span>
             <input
               type="time"
               value={draft.time}
-              onChange={(e) => set({ time: e.target.value })}
+              aria-invalid={missing === "time"}
+              onChange={(e) => {
+                set({ time: e.target.value });
+                setMissing(null);
+              }}
             />
+            {missing === "time" && (
+              <span className="field-error" role="alert">
+                Selecciona una hora.
+              </span>
+            )}
           </label>
           <label>
-            Personas
+            <span className="field-label">
+              <Users size={16} /> Personas
+            </span>
             <input
               type="number"
               min="1"
               step="1"
               value={draft.people || ""}
-              onChange={(e) =>
-                set({ people: Math.max(0, Number(e.target.value)) })
-              }
+              aria-invalid={missing === "people"}
+              onChange={(e) => {
+                set({
+                  people: Math.max(0, Math.floor(Number(e.target.value))),
+                });
+                setMissing(null);
+              }}
               placeholder="Número de personas"
             />
+            {missing === "people" && (
+              <span className="field-error" role="alert">
+                Indica cuántas personas asistirán.
+              </span>
+            )}
           </label>
-          {error && (
-            <p className="field-error" role="alert">
-              {error}
-            </p>
-          )}
           <button className="btn dark" onClick={next}>
             Elegir mesa <ArrowRight size={17} />
           </button>
@@ -1291,13 +1233,13 @@ function ReviewActions({ kind }: { kind: RequestKind }) {
     </>
   );
 }
-function ReviewList({ items }: { items: [string, string][] }) {
+function ReviewList({ items, edits = {} }: { items: [string, string][]; edits?: Record<string, { label: string; href?: string; onClick?: () => void }> }) {
   return (
     <dl className="review-list">
       {items.map(([label, value]) => (
         <div key={label}>
           <dt>{label}</dt>
-          <dd>{value}</dd>
+          <dd>{value}{edits[label] && (edits[label].href ? <Link className="review-edit" href={edits[label].href!}>{edits[label].label}</Link> : <button type="button" className="review-edit" onClick={edits[label].onClick}>{edits[label].label}</button>)}</dd>
         </div>
       ))}
     </dl>
@@ -1328,6 +1270,8 @@ function OrderReview() {
         <div className="wrap review-layout">
           <div className="review-card">
             <h2>Tu selección</h2>
+            {mode === "pickup" && <ReviewList items={[["Modalidad", "Para recoger"]]} edits={{ Modalidad: { label: "Cambiar", href: "/pedido" } }} />}
+            {mode === "dineIn" && <ReviewList items={[["Modalidad", "En Lunario"], ["Mesa", table ? "Mesa seleccionada" : "Sin mesa"]]} edits={{ "Modalidad": { label: "Cambiar", href: "/pedido" }, "Mesa": { label: "Cambiar mesa", href: "/pedido/mesa" } }} />}
             {cart.map((item) => {
               const p = productById(item.productId);
               return (
@@ -1360,19 +1304,10 @@ function OrderReview() {
           </div>
           <aside className="review-side">
             <p className="eyebrow">RESUMEN</p>
-            <ReviewList
-              items={[
-                [
-                  "Modalidad",
-                  mode === "dineIn" ? "En Lunario" : "Para recoger",
-                ],
-                ...(mode === "dineIn"
-                  ? [["Mesa", "Mesa seleccionada"] as [string, string]]
-                  : []),
-              ]}
-            />
             <p className="muted">La solicitud no realiza un pedido real.</p>
-            <ReviewActions kind="order" />
+            <div className="order-review-submit">
+              <ReviewActions kind="order" />
+            </div>
           </aside>
         </div>
       </main>
@@ -1403,12 +1338,14 @@ function ReservationReview() {
                 ["Personas", String(d.people)],
                 ["Mesa", "Mesa seleccionada"],
               ]}
+              edits={{ Fecha: { label: "Cambiar", href: "/reservar" }, Hora: { label: "Cambiar", href: "/reservar" }, Personas: { label: "Cambiar", href: "/reservar" }, Mesa: { label: "Cambiar mesa", href: "/reservar/mesa" }}}
             />
             <div className="mini-plan">
               <Floorplan
                 kind="table"
                 selected={d.tableId}
                 onSelect={() => {}}
+                readOnly
               />
             </div>
           </div>
@@ -1429,12 +1366,6 @@ function ReservationReview() {
 function CoworkingStart() {
   const d = useDemoStore((s) => s.cowork);
   const set = useDemoStore((s) => s.setCowork);
-  const request = useDemoStore((s) => s.request);
-  const reset = useDemoStore((s) => s.resetFlow);
-  useEffect(() => {
-    if (request?.kind === "coworking" && request.status === "confirmed")
-      reset("coworking");
-  }, [request, reset]);
   const router = useRouter();
   const room = rooms.find((r) => r.id === d.roomId);
   return (
@@ -1461,7 +1392,13 @@ function CoworkingStart() {
         <Floorplan
           kind="room"
           selected={d.roomId}
-          onSelect={(id) => set({ roomId: id, people: 0 })}
+          onSelect={(id) => {
+            const nextRoom = rooms.find((r) => r.id === id);
+            set({
+              roomId: id,
+              people: nextRoom && d.people <= nextRoom.capacity ? d.people : 0,
+            });
+          }}
         />
         <aside className="selection-panel">
           <p className="eyebrow">CUARTOS</p>
@@ -1473,9 +1410,16 @@ function CoworkingStart() {
             {rooms.map((r) => (
               <button
                 key={r.id}
+                aria-pressed={d.roomId === r.id}
                 className={d.roomId === r.id ? "selected" : ""}
-                onClick={() => set({ roomId: r.id, people: 0 })}
+                onClick={() =>
+                  set({
+                    roomId: r.id,
+                    people: d.people <= r.capacity ? d.people : 0,
+                  })
+                }
               >
+                <Laptop size={20} />
                 <span>{r.name}</span>
                 <small>Hasta {r.capacity} personas</small>
               </button>
@@ -1499,26 +1443,27 @@ function CoworkingConfigure() {
   const router = useRouter();
   const room = rooms.find((r) => r.id === d.roomId);
   const rate = rates.find((r) => r.id === d.rateId);
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const minimum =
+    d.rateId === "light" && d.period === "hour"
+      ? (rates.find((item) => item.id === "light")?.minHours ?? 1)
+      : 1;
+  const reference = rate && d.period ? rate.prices[d.period] : null;
+
   function next() {
-    if (
-      !d.rateId ||
-      !d.period ||
-      !d.duration ||
-      !d.date ||
-      !d.time ||
-      !d.people
-    ) {
-      setError("Completa tarifa, duración, fecha, hora y personas.");
-      return;
-    }
-    if (d.rateId === "light" && d.period === "hour" && d.duration < 3) {
-      setError("La tarifa Light requiere un mínimo de 3 horas.");
-      return;
-    }
-    setError("");
+    const missing: Record<string, string> = {};
+    if (!d.rateId) missing.rate = "Elige una tarifa.";
+    if (!d.period) missing.period = "Elige un periodo.";
+    if (d.duration < minimum) missing.duration = `Indica al menos ${minimum} ${minimum === 1 ? "unidad" : "horas"}.`;
+    if (!d.date) missing.date = "Selecciona una fecha.";
+    if (!d.time) missing.time = "Indica la hora de inicio.";
+    if (!d.people) missing.people = "Indica cuántas personas asistirán.";
+    else if (d.people > (room?.capacity ?? 0)) missing.people = `Este cuarto admite hasta ${room?.capacity} personas.`;
+    setErrors(missing);
+    if (Object.keys(missing).length) return;
     router.push("/coworking/revision");
   }
+
   return (
     <Guard valid={!!room} to="/coworking">
       <main>
@@ -1531,115 +1476,156 @@ function CoworkingConfigure() {
         <div className="wrap cowork-config">
           <div>
             <h2>Elige una tarifa</h2>
-            <div className="rate-grid">
+            <div className="rate-grid" aria-describedby={errors.rate ? "cowork-rate-error" : undefined}>
               {rates.map((r) => (
                 <button
                   key={r.id}
+                  aria-pressed={d.rateId === r.id}
                   className={`rate-card ${d.rateId === r.id ? "selected" : ""}`}
-                  onClick={() =>
+                  onClick={() => {
+                    const nextMinimum =
+                      r.id === "light" && d.period === "hour"
+                        ? (r.minHours ?? 1)
+                        : 1;
                     set({
                       rateId: r.id,
-                      duration:
-                        r.id === "light" && d.period === "hour"
-                          ? Math.max(3, d.duration)
-                          : d.duration,
-                    })
-                  }
+                      duration: Math.max(nextMinimum, d.duration),
+                    });
+                  }}
                 >
                   <span className="eyebrow">TARIFA</span>
                   <strong>{r.name}</strong>
                   <p>{r.includes}</p>
-                  <small>Desde {formatMoney(r.prices.hour)} / hora</small>
+                  <small>{formatMoney(r.prices.hour)} / hora · tarifa publicada</small>
                 </button>
               ))}
             </div>
-            <div className="form-panel cowork-fields">
+            {errors.rate && <p id="cowork-rate-error" className="field-error" role="alert">{errors.rate}</p>}
+            <section className="form-panel cowork-fields">
+              <fieldset className="duration-field">
+                <legend>¿Cómo quieres reservar?</legend>
+                <div className="period-options" role="group" aria-label="Periodo de coworking">
+                  {periods.map((period) => (
+                    <button
+                      type="button"
+                      key={period.id}
+                      className={d.period === period.id ? "selected" : ""}
+                      aria-pressed={d.period === period.id}
+                      onClick={() => {
+                        const nextMinimum =
+                          d.rateId === "light" && period.id === "hour"
+                            ? (rates.find((item) => item.id === "light")?.minHours ?? 1)
+                            : 1;
+                        set({
+                          period: period.id,
+                          duration:
+                            d.period === period.id
+                              ? Math.max(nextMinimum, d.duration)
+                              : nextMinimum,
+                        });
+                        setErrors({});
+                      }}
+                    >
+                      <strong>
+                        {period.id === "hour"
+                          ? "Por hora"
+                          : period.id === "day"
+                            ? "Por día"
+                            : period.name}
+                      </strong>
+                      <small>
+                        Solicitud de demostración
+                      </small>
+                    </button>
+                  ))}
+                </div>
+                {errors.period && <p className="field-error" role="alert">{errors.period}</p>}
+              </fieldset>
               <div className="field-grid">
                 <label>
-                  Periodo
-                  <select
-                    value={d.period ?? ""}
-                    onChange={(e) => {
-                      const period = e.target.value as Period;
-                      set({
-                        period,
-                        duration:
-                          d.rateId === "light" && period === "hour"
-                            ? Math.max(3, d.duration)
-                            : d.duration,
-                      });
-                    }}
-                  >
-                    <option value="">Selecciona un periodo</option>
-                    {periods.map((p) => (
-                      <option value={p.id} key={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Duración
+                  Cantidad
                   <input
                     type="number"
-                    min={d.rateId === "light" && d.period === "hour" ? 3 : 1}
+                    min={minimum}
                     step="1"
                     value={d.duration || ""}
+                    aria-invalid={!!errors.duration}
+                    aria-describedby={errors.duration ? "cowork-duration-error" : undefined}
                     onChange={(e) =>
-                      set({ duration: Math.max(0, Number(e.target.value)) })
+                      set({
+                        duration: Math.max(
+                          minimum,
+                          Math.floor(Number(e.target.value) || minimum),
+                        ),
+                      })
                     }
                   />
+                  {errors.duration && <span id="cowork-duration-error" className="field-error" role="alert">{errors.duration}</span>}
                 </label>
                 <label>
-                  Fecha
+                  <span className="field-label">
+                    <CalendarDays size={16} /> Fecha deseada
+                  </span>
                   <input
                     type="date"
                     value={d.date}
+                    aria-invalid={!!errors.date}
+                    aria-describedby={errors.date ? "cowork-date-error" : undefined}
                     onChange={(e) => set({ date: e.target.value })}
                   />
+                  {errors.date && <span id="cowork-date-error" className="field-error" role="alert">{errors.date}</span>}
                 </label>
                 <label>
-                  Hora
-                  <input
-                    type="time"
-                    value={d.time}
-                    onChange={(e) => set({ time: e.target.value })}
-                  />
+                    <span className="field-label">
+                      <Clock size={16} /> Hora de inicio
+                    </span>
+                    <input
+                      type="time"
+                      value={d.time}
+                      aria-invalid={!!errors.time}
+                      aria-describedby={errors.time ? "cowork-time-error" : undefined}
+                      onChange={(e) => set({ time: e.target.value })}
+                    />
+                    {errors.time && <span id="cowork-time-error" className="field-error" role="alert">{errors.time}</span>}
                 </label>
                 <label>
-                  Personas
+                  <span className="field-label">
+                    <Users size={16} /> Personas
+                  </span>
                   <input
                     type="number"
                     min="1"
                     max={room?.capacity}
                     step="1"
                     value={d.people || ""}
+                    aria-invalid={!!errors.people}
+                    aria-describedby={errors.people ? "cowork-people-error" : undefined}
                     onChange={(e) =>
                       set({
                         people: Math.min(
                           room?.capacity ?? 10,
-                          Math.max(0, Number(e.target.value)),
+                          Math.max(0, Math.floor(Number(e.target.value) || 0)),
                         ),
                       })
                     }
                   />
+                  {errors.people && <span id="cowork-people-error" className="field-error" role="alert">{errors.people}</span>}
                 </label>
               </div>
-              {d.rateId === "light" && d.period === "hour" && (
-                <p className="info-note">
-                  Renta mínima: 3 horas. Tarifa por persona publicada: 1–4
-                  personas $30; 5–10 $27; 11–16 $25.
-                </p>
-              )}
-              {error && (
-                <p className="field-error" role="alert">
-                  {error}
-                </p>
+              {rate?.id === "light" && <p className="info-note">
+                Renta mínima: {rate.minHours} horas. Light por persona y hora: {rate.perPersonHourlyTiers.map((tier) => `${tier.people} personas ${formatMoney(tier.price)}`).join("; ")}.
+              </p>}
+              {reference !== null && rate && d.period && (
+                <div className="cowork-quote" aria-live="polite">
+                  <span>{rate.name} · {periods.find((period) => period.id === d.period)?.name}</span>
+                  <strong>{formatMoney(reference)} · tarifa publicada</strong>
+                  <small>Aplicación de tarifa sujeta a confirmación de Lunario.</small>
+                </div>
               )}
               <button className="btn dark" onClick={next}>
                 Revisar solicitud <ArrowRight size={17} />
               </button>
-            </div>
+            </section>
           </div>
           <aside className="review-side cowork-summary">
             <p className="eyebrow">REFERENCIA</p>
@@ -1649,11 +1635,15 @@ function CoworkingConfigure() {
               <ReviewList
                 items={[
                   ["Tarifa", rate.name],
+                  ["Periodo", periods.find((p) => p.id === d.period)?.name ?? ""],
                   [
-                    "Periodo",
-                    periods.find((p) => p.id === d.period)?.name ?? "",
+                    "Cantidad",
+                    `${d.duration} ${d.period === "hour" ? "horas" : d.period === "day" ? "días" : d.period === "week" ? "semanas" : "meses"}`,
                   ],
-                  ["Tarifa publicada", formatMoney(rate.prices[d.period])],
+                  [
+                    "Referencia",
+                    reference === null ? "Elige una tarifa y un periodo" : formatMoney(reference),
+                  ],
                 ]}
               />
             )}
@@ -1683,7 +1673,7 @@ function CoworkingReview() {
           d.time &&
           d.people &&
           d.people <= room.capacity &&
-          (rate.id !== "light" || period.id !== "hour" || d.duration >= 3)
+          (rate.id !== "light" || period.id !== "hour" || d.duration >= (rate.minHours ?? 1))
         )
       }
       to={room ? "/coworking/configurar" : "/coworking"}
@@ -1692,7 +1682,7 @@ function CoworkingReview() {
         <StepHeader
           eyebrow="COWORKING / REVISIÓN"
           title="Revisa tu espacio"
-          description="Esta es una solicitud. Lunario confirmaría su aplicación y condiciones."
+          description="Revisa la referencia de tarifa y envía una solicitud sujeta a confirmación de Lunario."
           back="/coworking/configurar"
         />
         <div className="wrap review-layout">
@@ -1708,18 +1698,18 @@ function CoworkingReview() {
                   `${d.duration} ${d.duration > 1 ? ({ hour: "horas", day: "días", week: "semanas", month: "meses" } as const)[d.period ?? "hour"] : period?.name.toLowerCase()}`,
                 ],
                 ["Fecha", d.date],
-                ["Hora", d.time],
+                ["Hora de inicio", d.time],
                 ["Personas", String(d.people)],
                 [
                   "Tarifa publicada",
                   rate && d.period ? formatMoney(rate.prices[d.period]) : "",
                 ],
               ]}
+              edits={{ Capacidad: { label: "Cambiar cuarto", href: "/coworking" }, Tarifa: { label: "Cambiar", href: "/coworking/configurar" }, Periodo: { label: "Cambiar", href: "/coworking/configurar" }, Duración: { label: "Cambiar", href: "/coworking/configurar" }, Fecha: { label: "Cambiar", href: "/coworking/configurar" }, "Hora de inicio": { label: "Cambiar", href: "/coworking/configurar" }, Personas: { label: "Cambiar", href: "/coworking/configurar" }}}
             />
             {rate?.id === "light" && (
               <p className="info-note">
-                Light: renta mínima de 3 horas. Tarifa por persona por hora: 1–4
-                $30, 5–10 $27, 11–16 $25.
+                Light: renta mínima de {rate.minHours} horas. Tarifa por persona por hora: {rate.perPersonHourlyTiers.map((tier) => `${tier.people} personas ${formatMoney(tier.price)}`).join("; ")}.
               </p>
             )}
           </div>
@@ -1727,8 +1717,7 @@ function CoworkingReview() {
             <p className="eyebrow">CONFIRMACIÓN PENDIENTE</p>
             <h2>Todo listo para solicitar.</h2>
             <p className="muted">
-              Aplicación de tarifa sujeta a confirmación de Lunario. No se
-              calcula un total definitivo ni se realiza un cobro.
+              Esta referencia no confirma disponibilidad ni procesa un cobro.
             </p>
             <ReviewActions kind="coworking" />
           </aside>
@@ -1738,20 +1727,41 @@ function CoworkingReview() {
   );
 }
 function RequestView() {
+  const router = useRouter();
+  const [startingNew, setStartingNew] = useState(false);
   const req = useDemoStore((s) => s.request);
   const advance = useDemoStore((s) => s.advanceRequest);
   const payment = useDemoStore((s) => s.selectPayment);
+  const reset = useDemoStore((s) => s.resetFlow);
   const target =
     req?.kind === "order"
       ? "/pedido"
       : req?.kind === "tableReservation"
         ? "/reservar"
-        : "/coworking";
+        : req?.kind === "coworking" ? "/coworking" : "/";
   return (
-    <Guard valid={!!req} to={target ?? "/"}>
+    <Guard valid={!!req || startingNew} to={target ?? "/"}>
       <main className="request-page">
         <div className="wrap request-center">
           <span className="demo-badge">ESTADO DE DEMOSTRACIÓN</span>
+          <ol className="request-progress" aria-label="Estado de solicitud">
+            {["Enviada", "Pendiente", "Confirmada"].map((label, i) => (
+              <li
+                key={label}
+                className={
+                  i <=
+                  ["submitted", "pending", "confirmed"].indexOf(
+                    req?.status ?? "",
+                  )
+                    ? "complete"
+                    : ""
+                }
+              >
+                <span>{i + 1}</span>
+                {label}
+              </li>
+            ))}
+          </ol>
           <div className="request-mark">
             <Check size={36} />
           </div>
@@ -1789,46 +1799,29 @@ function RequestView() {
           {req?.status === "confirmed" && (
             <div className="payment-panel">
               <h2>Opciones de pago</h2>
-              <p className="muted">
-                Así podría continuar la experiencia después de confirmar.
-              </p>
+              <p className="muted">Así podría continuar la experiencia después de la confirmación.</p>
               <div className="payment-options">
-                <button
-                  className={req.paymentSelection === "card" ? "selected" : ""}
-                  onClick={() => payment("card")}
-                >
-                  <CreditCard />
-                  Tarjeta
-                </button>
-                <button
-                  className={
-                    req.paymentSelection === "apple-pay" ? "selected" : ""
-                  }
-                  onClick={() => payment("apple-pay")}
-                >
-                  <span className="apple-mark">●</span>Apple Pay
-                </button>
-                <button
-                  className={req.paymentSelection === "cash" ? "selected" : ""}
-                  onClick={() => payment("cash")}
-                >
-                  <Banknote />
-                  Efectivo
-                </button>
+                {paymentMethods.map(({ id, label }) => (
+                  <button key={id} className={req.paymentSelection === id ? "selected" : ""}
+                    aria-pressed={req.paymentSelection === id} onClick={() => payment(id)}>
+                    {id === "cash" ? <Banknote /> : <CreditCard />}{label}
+                  </button>
+                ))}
               </div>
-              {req.paymentSelection && (
-                <p className="payment-selected">
-                  <Check size={17} /> Opción visual seleccionada
-                </p>
-              )}
-              <p className="info-note">
-                Demostración visual. No se realizará ningún cobro.
-              </p>
+              {req.paymentSelection && <p className="payment-selected" role="status">
+                <Check size={17} /> {paymentMethods.find((method) => method.id === req.paymentSelection)?.label} seleccionado para la demostración.
+              </p>}
+              <p className="info-note">Demostración visual. No se realizará ningún cobro.</p>
             </div>
           )}
           <Link className="back-link" href="/">
             Volver al inicio
           </Link>
+          {req?.status === "confirmed" && <button className="btn dark" onClick={() => {
+            setStartingNew(true);
+            reset(req.kind);
+            router.push(target);
+          }}>{req.kind === "order" ? "Nuevo pedido" : req.kind === "tableReservation" ? "Nueva reserva" : "Nueva solicitud de coworking"}</button>}
         </div>
       </main>
     </Guard>

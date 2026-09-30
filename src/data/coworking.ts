@@ -17,7 +17,7 @@ export const rates = [
     name: "Premium",
     prices: { hour: 70, day: 280, week: 1120, month: 2580 },
     includes:
-      "Bebidas ilimitadas: capuchino/latte, sodas italianas, lattes saborizados indicados, té, americano o agua.",
+      "Bebidas ilimitadas: capuchino/latte, sodas italianas, lattes de matcha, taro o red velvet, té, americano o agua.",
     minHours: null,
     perPersonHourlyTiers: null,
     roomRestrictions: null,
@@ -26,7 +26,7 @@ export const rates = [
     id: "basic",
     name: "Básica",
     prices: { hour: 50, day: 219, week: 860, month: 1900 },
-    includes: "Incluye una bebida entre las opciones publicadas.",
+    includes: "Incluye una bebida: expresso, americano, té o agua.",
     minHours: null,
     perPersonHourlyTiers: null,
     roomRestrictions: null,
