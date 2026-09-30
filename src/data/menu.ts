@@ -9,6 +9,7 @@ export type OptionGroup = {
   id: string;
   label: string;
   required: boolean;
+  onlyWhen?: { groupId: string; optionId: string };
   options: Option[];
 };
 export type Product = {
@@ -682,6 +683,128 @@ export const products: Product[] = [
     ]),
   ),
 ];
+// Confirmed associations from the official menu, pages 4, 6–9.
+// Ambiguous extras, unspecified fruits and unconfirmed package choices remain informational.
+for (const product of products) {
+  const add = (...groups: OptionGroup[]) =>
+    product.optionGroups.push(...groups);
+  if (
+    [
+      "expresso-cortado",
+      "macciato",
+      "capuchino",
+      "latte",
+      "caramel",
+      "mocha",
+      "nutella",
+      "cream-brulett",
+      "latte-bombon",
+      "capuchino-saborizado",
+    ].includes(product.id)
+  ) {
+    add(
+      group(
+        `${product.id}-milk`,
+        "Leche",
+        [
+          ["Entera", 0],
+          ["Deslactosada", 10],
+          ["Almendras", 15],
+          ["Avena", 20],
+        ],
+        "delta",
+      ),
+    );
+  }
+  if (["chilaquiles", "enchiladas"].includes(product.id)) {
+    add(
+      choice(`${product.id}-salsa`, "Salsa", [
+        "Salsa verde",
+        "Salsa roja",
+        "Salsa Lunario (habanero)",
+      ]),
+      group(
+        `${product.id}-protein`,
+        "Proteína",
+        [
+          ["Pollo", 0],
+          ["Huevo", 0],
+          ["Jamón", 0],
+          ["Arrachera", 32],
+          ["Bisteck de res o cerdo", 32],
+        ],
+        "delta",
+      ),
+    );
+  }
+  if (product.optionGroups.some((g) => g.id === `${product.id}-presentacion`))
+    add({
+      ...choice(`${product.id}-drink`, "Bebida del paquete", ["Café", "Té"]),
+      onlyWhen: {
+        groupId: `${product.id}-presentacion`,
+        optionId: `${product.id}-presentacion-1`,
+      },
+    });
+  if (product.id === "menu-kids")
+    add(choice("kids-drink", "Bebida", ["Jugo", "Té"]));
+  if (product.id === "huevos")
+    add(
+      choice("huevos-style", "Preparación", [
+        "Tocino",
+        "Jamón",
+        "Rancheros",
+        "Divorciados",
+      ]),
+    );
+  if (product.id === "omelette")
+    add(
+      choice("omelette-filling", "Relleno", [
+        "Espinaca con queso manchego",
+        "Champiñones con queso manchego",
+      ]),
+    );
+  if (product.id.startsWith("crepa-dulce-"))
+    add(
+      choice(`${product.id}-base`, "Base", [
+        "Philadelphia",
+        "Nutella",
+        "Cajeta",
+      ]),
+    );
+  if (product.id.startsWith("waffle-"))
+    add(choice(`${product.id}-base`, "Base", ["Vainilla", "Cocoa"]));
+  if (product.categoryId === "emparedados")
+    add({
+      ...group(
+        `${product.id}-extra`,
+        "Extras",
+        [
+          ["Sin extra", 0],
+          ["Papas fritas", 45],
+        ],
+        "delta",
+      ),
+      required: false,
+    });
+  if (["alitas", "boneless"].includes(product.id))
+    add(
+      choice(`${product.id}-salsa`, "Salsa", [
+        "Mango habanero",
+        "BBQ",
+        "Picafresa",
+        "Tamarindo",
+        "Jalapeño",
+      ]),
+    );
+}
+export const visibleGroups = (
+  product: Product,
+  selections: Record<string, string>,
+) =>
+  product.optionGroups.filter(
+    (g) =>
+      !g.onlyWhen || selections[g.onlyWhen.groupId] === g.onlyWhen.optionId,
+  );
 export const formatMoney = (value: number) =>
   new Intl.NumberFormat("es-MX", {
     style: "currency",
@@ -692,13 +815,14 @@ export function unitPrice(
   product: Product,
   selections: Record<string, string>,
 ) {
-  let price = product.basePrice ?? 0;
-  for (const g of product.optionGroups) {
+  let price = product.basePrice ?? startingPrice(product);
+  let extras = 0;
+  for (const g of visibleGroups(product, selections)) {
     const o = g.options.find((o) => o.id === selections[g.id]);
     if (o?.priceMode === "absolute") price = o.price;
-    if (o?.priceMode === "delta") price += o.price;
+    if (o?.priceMode === "delta") extras += o.price;
   }
-  return price;
+  return price + extras;
 }
 export function startingPrice(product: Product) {
   const p = product.optionGroups.flatMap((g) =>
